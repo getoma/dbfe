@@ -290,7 +290,7 @@ abstract class tableFormPage extends formPage
       }
 
       /* prepare fetching of all data */
-      $default_group = 'NO GROUP';
+      $default_group = $this->getLabelHdl()->get( 'NO GROUP', $this->getTable()->getName() );
 
       /* sort result set into groups, detect multiple entries along the specifiers as well */
       $pages = [];
@@ -299,7 +299,7 @@ abstract class tableFormPage extends formPage
       {
          $id = array_shift($row);
          $name = array_shift($row);
-         $group = empty($row)? $default_group : array_shift($row);
+         $group = array_shift($row)??$default_group;
 
          $pages[$group][$id] = array_merge( [$name], $row );
          $keyList = [$group];
