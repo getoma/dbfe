@@ -809,7 +809,7 @@ class Checkbox extends Element
        */
       $name = (substr($data['name'], - 2) === '[]') ? substr($data['name'], 0, - 2) : $data['name'];
 
-      if( isset($data['value']) && isset($data['values']['name']) &&
+      if( isset($data['value']) && isset($data['values'][$name]) &&
          (is_array($data['values'][$name]) ? in_array($data['value'], $data['values'][$name]) : $data['value'] === $data['values'][$name]) )
       {
          $data['checked'] = 'checked';
