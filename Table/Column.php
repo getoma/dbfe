@@ -474,9 +474,8 @@ class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
          if( $refData )
          {
             while( $row = $refData->fetch( \PDO::FETCH_NUM ) )
-            {
-               // remove any ordering prefix               
-               $refValues[$row[0]] = preg_replace( "/^\d+[_ -]/", "", $row[1], 1 );
+            {               
+               $refValues[$row[0]] = $row[1];
             }
          }
          return $refValues;
