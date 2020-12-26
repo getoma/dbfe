@@ -430,6 +430,8 @@ class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
    protected $refTable = null;
    /** @var mixed */
    protected $query    = null;
+   /** @var mixed */
+   protected $disabled = null;
 
    public function __construct($structure, string $table, Table $ref)
    {
@@ -490,6 +492,27 @@ class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
          throw new \LogicException("unsupported type of reference query for column " . $this->getName() );
       }
    }
+   
+   /**
+    * get a list of "disabled" selection keys
+    */
+   private function getDisabledKeys()
+   {
+      $query = $this->disabled;
+      if( $query instanceof SelectQuery )
+      {
+         return $this->refTable->query( $query )->fetchAll(\PDO::FETCH_COLUMN);
+      }
+      else if( is_array($query) )
+      {
+         // data is given directly already
+         return $query;
+      }
+      else
+      {
+         return [];
+      }
+   }
 
    /**
     * get a form specification that can be used as input to Form\Printer
@@ -505,17 +528,19 @@ class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
          [ 'name'  => $this->getAfixedName($as_array)
          , 'label' => $lblHdl->get( $this->getName(), $this->m_tablename )
          , 'required' => ($this->isRequired() && !$as_array)
-         , 'type'  => 'select', 'selection' => $this->getReferenceData() ] );
+         , 'type'  => 'select', 'selection' => $this->getReferenceData(), 'disabled_keys' => $this->getDisabledKeys() ] );
    }
 
    /**
     * set a customized array to retrieve the selection data set
     * to set the reference content
-    * @param SelectQuery $query
+    * @param SelectQuery|array $query
+    * @param SelectQuery|array $disable_keys - any keys that shall no longer be selectable (unless they are already used for a specific field)
     */
-   public function setReferenceQuery( $query )
+   public function setReferenceQuery( $query, $disable_keys = null )
    {
-      $this->query = $query;
+      $this->query    = $query;
+      $this->disabled = $disable_keys; 
    }
 }
 

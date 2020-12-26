@@ -492,12 +492,12 @@ class AtomicContainer extends Atomic
   function __construct( $data )
    {
       /* first retrieve the defined content */
-      $content = [];
-      if( isset($data['selection']) )
-      {
-         $content = $data['selection'];
-         unset($data['selection']);
-      }
+      $content  = $data['selection'] ?? [];
+      unset($data['selection']);
+            
+      /* retrieve any optional "disabled options" list */
+      $disabled = $data['disabled_keys'] ?? [];
+      unset($data['disabled_keys']);
 
       /* the type has to be the tag itself here */
       $data['tag'] = $data['type'];
@@ -514,7 +514,7 @@ class AtomicContainer extends Atomic
             $options['selected'] = true;
          }
 
-         if( !@$this->attr['disabled'] || @$options['selected'] )
+         if( !(@$this->attr['disabled'] || in_array($key, $disabled)) || @$options['selected'] )
          {
             $this->push(new Atomic($options));
          }
