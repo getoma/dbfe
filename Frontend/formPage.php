@@ -36,7 +36,7 @@ abstract class formPage extends plainPage
     * get complete block of data of the current page
     * @return array
     */
-   abstract protected function getData();
+   abstract protected function getData( bool $refetch = false );
    
    /**
     * return content of the form as Form\Printer structure

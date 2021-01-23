@@ -17,6 +17,9 @@ abstract class tableFormPage extends formPage
    protected $m_required_only_on_new_entry = true;
    /** @var int selected entry */
    protected $m_entry_id = null;
+   
+   /** @var array - lazy fetch table contents */
+   private $m_data;
 
    /**
     * protected getters
@@ -248,9 +251,13 @@ abstract class tableFormPage extends formPage
     * {@inheritDoc}
     * @see \dbfe\formPage::getData()
     */
-   protected function getData()
+   protected function getData( bool $refetch = false )
    {
-      return $this->getTable()->getFormData( $this->m_as_array? [] : $this->m_entry_id );
+      if( $refetch || !isset($this->m_data) )         
+      {
+         $this->m_data = $this->getTable()->getFormData( $this->m_as_array? [] : $this->m_entry_id );
+      }
+      return $this->m_data;
    }
 
    /**

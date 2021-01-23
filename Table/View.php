@@ -16,12 +16,20 @@ class View implements TableIf
 
    /**@var array[ViewColumn] */
    protected $m_columns;
+   
+   /**@var Boolean  default setting for "hideEmpty" */
+   public static $HIDE_EMPTY = false;
+   
+   /**@var Boolean  hide empty */
+   protected $m_hide_empty;
 
    function __construct(string $name, SelectQuery $query, \PDO $dbh )
    {
       $this->name  = $name;
       $this->query = $query;
       $this->m_dbh = $dbh;
+      
+      $this->m_hide_empty = self::$HIDE_EMPTY;
 
       $first = true;
       foreach( $query->columns as $col )
@@ -35,6 +43,11 @@ class View implements TableIf
          $this->m_columns[$col] = new ViewColumn($col, $name, $first);
          $first = false;
       };
+   }
+   
+   public function hideEmpty( bool $hide )
+   {
+      $this->m_hide_empty = $hide;
    }
 
    public function linkReferences( Factory $factory, $options = 0 )
@@ -147,14 +160,21 @@ class View implements TableIf
     */
    public function getFormDefinition(LabelHandlerIf $lblHdl, array $data, array $options = [])
    {
-      $content = array_map( function($col) use ($lblHdl, $data, $options)
-                            {
-                               return $col->getFormDefinition( $lblHdl, $data, $options['as_array'] || false );
-                            }, 
-                           // skip first column in output (contains link to main table)
-                           array_slice( array_values( $this->getColumns() ), 1 ) );
+      if( !$data[$this->getName() . "___empty"] || !$this->m_hide_empty )
+      {
+         $content = array_map( function($col) use ($lblHdl, $data, $options)
+                               {
+                                  return $col->getFormDefinition( $lblHdl, $data, $options['as_array'] || false );
+                               }, 
+                              // skip first column in output (contains link to main table)
+                              array_slice( array_values( $this->getColumns() ), 1 ) );        
       
-      return new Form\Printer\ConfigurationList( [ [ 'type' => 'table', 'content' => $content ] ] );
+         return new Form\Printer\ConfigurationList( [ [ 'type' => 'table', 'content' => $content ] ] );
+      }
+      else
+      {
+         return new Form\Printer\ConfigurationList();
+      }
    }
 
    public function getFormData($selector = [])
@@ -171,6 +191,9 @@ class View implements TableIf
       /* execute query */
       $data = $this->m_dbh->query( $query->asString() );
       if( !$data ) throw new DatabaseError($this->m_dbh->errorCode());
+      
+      $result[$this->getName() . "___empty"] = ($data->rowCount() === 0);
+      
       while( $row = $data->fetch(\PDO::FETCH_ASSOC) )
       {
          foreach( $row as $name => $value )
