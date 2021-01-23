@@ -1226,7 +1226,7 @@ class Table implements TableIf
          if( $rowcount )
          {
             $result[] = [ 'name' => static::getDeleteColName( $this->getName(), true ), 'label' => $lblHdl->get('delete'),
-                          'type' => 'checkbox', 'value' => $row_range ];
+                          'type' => 'checkbox', 'value' => $row_range, 'class' => 'delete_entry' ];
          }
 
          /* create the surrounding array group */

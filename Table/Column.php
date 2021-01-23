@@ -667,7 +667,7 @@ class FileHandlerColumn extends PlainColumn implements FileHandlerColumnIf
 
       if( $this->support_delete && !empty($data[$dname][0]) )
       {
-         $result[] = [ 'type' => 'checkbox', 'label' => 'delete', 'name' => $this->getDeleteName()
+         $result[] = [ 'type' => 'checkbox', 'label' => 'delete', 'name' => $this->getDeleteName(), 'class' => 'delete_entry'
                      , 'value' => $as_array? $data[$dname] : $data[$dname][0] ];
       }
 
