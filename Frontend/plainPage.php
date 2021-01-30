@@ -177,6 +177,7 @@ class plainPage implements dbfeIf
       else
       {
          header("Content-type: text/html; charset=UTF-8");
+         header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + (30))); // 30 seconds
       }
       return $result;
    }
