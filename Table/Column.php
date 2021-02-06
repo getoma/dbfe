@@ -68,6 +68,11 @@ interface ColumnIf
     * @return boolean
     */
    public function isUnique();
+   
+   /**
+    * @return boolean
+    */
+   public function isFixed();
 
    /**
     * @return string
@@ -96,6 +101,11 @@ interface ColumnIf
     * make a column required although the database itself allows NULL values
     */
    public function makeRequired();
+   
+   /**
+    * make a column "fixed" - it cannot be modified anymore once initially set
+    */
+   public function makeFixed();
 }
 
 interface ReferenceColumnIf extends ColumnIf
@@ -172,6 +182,9 @@ class PlainColumn implements ColumnIf
 
    /** @var bool */
    protected $m_required = false;
+   
+   /** @var bool */
+   protected $m_fixed = false;
 
    public function __construct( $structure, string $table, bool $heuristic_types = false)
    {
@@ -225,9 +238,11 @@ class PlainColumn implements ColumnIf
       return new Form\Printer\Configuration( 
          array_merge( [ 'name'     => $this->getAfixedName($as_array),
                         'label'    => $lblHdl->get( $this->getName(), $this->m_tablename ),
-                        'required' => $this->isRequired() && !$as_array ],
-                            $this->m_formProp,
-                            $this->m_type->getFormAttributes( $lblHdl, $this->m_tablename . '.' . $this->getName() )
+                        'required' => $this->isRequired() && !$as_array, 
+                        'fixed'    => $this->isFixed()
+                      ],
+                        $this->m_formProp,
+                        $this->m_type->getFormAttributes( $lblHdl, $this->m_tablename . '.' . $this->getName() )
             ) );
    }
 
@@ -305,6 +320,14 @@ class PlainColumn implements ColumnIf
    {
       return $this->m_key === 'UNI';
    }
+   
+   /**
+    * @return boolean
+    */
+   public function isFixed()
+   {
+      return $this->m_fixed || $this->isPrimaryKey(); 
+   }
 
    /**
     * @return string
@@ -375,9 +398,18 @@ class PlainColumn implements ColumnIf
       return $this->skip;
    }
 
+   /**
+    * {@inheritDoc}
+    * @see \dbfe\ColumnIf::makeRequired()
+    */
    public function makeRequired()
    {
       $this->m_required = true;
+   }
+   
+   public function makeFixed()
+   {
+      $this->m_fixed = true;
    }
 }
 
@@ -417,6 +449,7 @@ class SelectionColumn extends PlainColumn
       return new Form\Printer\Configuration(
          [ 'name'  => $this->getAfixedName($as_array),
            'label' => $lblHdl->get( $this->getName(), $this->m_tablename ),
+           'fixed' => $this->isFixed(),
            'type'  => 'select', 'selection' => $selection ] );
    }
 }
@@ -528,6 +561,7 @@ class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
          [ 'name'  => $this->getAfixedName($as_array)
          , 'label' => $lblHdl->get( $this->getName(), $this->m_tablename )
          , 'required' => ($this->isRequired() && !$as_array)
+         , 'fixed'    => $this->isFixed()
          , 'type'  => 'select', 'selection' => $this->getReferenceData(), 'disabled_keys' => $this->getDisabledKeys() ] );
    }
 

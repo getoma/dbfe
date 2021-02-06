@@ -339,6 +339,11 @@ class ViewColumn implements ColumnIf
    {
       return $this->isKey;
    }
+   
+   public function isFixed()
+   {
+      return true;
+   }
 
    public function getAfixedName(bool $as_array = false)
    {
@@ -348,11 +353,16 @@ class ViewColumn implements ColumnIf
 
    public function setCustomConstraint(Form\Validator\Constraint $constraint)
    {
-      // nohing to do
+      // nothing to do
    }
 
    public function makeRequired()
    {
       // yeah, whatever...
+   }
+   
+   public function makeFixed()
+   {
+      
    }
 }

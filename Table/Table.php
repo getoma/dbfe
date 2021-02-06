@@ -1107,11 +1107,6 @@ class Table implements TableIf
          /* loop through the list of columns and add them to the output */
          foreach( $coldef_list as $coldef )
          {
-            /* disable primary key columns, otherwise the mapping of input data
-             * may become very problematic
-             */
-            if( $col->isPrimaryKey() ) $coldef['fixed'] = true;
-
             $groupname = @$grouping[$colname];
 
             if( isset( $groupname ) )
