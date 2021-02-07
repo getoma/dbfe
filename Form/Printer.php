@@ -406,9 +406,9 @@ class Atomic extends Base
       }
 
       /* get list of default html params */
-      $htmlDefs = isset($data['type']) && isset(static::$htmlDef[$data['type']]) ? static::$htmlDef[$data['type']] 
-                : isset($data['tag']) && isset(static::$htmlDef[$data['tag']])   ? static::$htmlDef[$data['tag']] 
-                :                                                                  [];
+      $htmlDefs =  isset($data['type']) && isset(static::$htmlDef[$data['type']]) ? static::$htmlDef[$data['type']] 
+                :( isset($data['tag']) && isset(static::$htmlDef[$data['tag']])   ? static::$htmlDef[$data['tag']] 
+                :                                                                   [] );
 
       /* create the object */
       parent::__construct($data, $htmlDefs, $data->children()->content());
