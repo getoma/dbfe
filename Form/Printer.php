@@ -508,7 +508,7 @@ class AtomicContainer extends Atomic
       /* create the options */
       foreach( $content as $key => $value )
       {
-         $options = [ 'value' => $key, 'content' => [ $value ], 'tag' => 'option' ];
+         $options = [ 'value' => $key, 'content' => [ $value??'' ], 'tag' => 'option' ];
          if( strval($key) === strval($selected) )
          {
             $options['selected'] = true;

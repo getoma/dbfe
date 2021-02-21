@@ -623,9 +623,9 @@ class Table implements TableIf
          $field_name = $col->getAfixedName();
          if( is_array($data[$field_name]) )
          {
-            if( $col->getType() === 'Boolean' )
+            if( ($col->getType() === 'Boolean') && get_class($col) === 'PlainColumn' )
             {
-               /* special handling for boolean (handled via checkboxes)
+               /* special handling for boolean (handled via checkboxes in PlainColumn)
                 * data fields contain the row numbers which are to be set
                 */
                for( $i = 0; $i < count($datasets); ++$i )
@@ -1009,7 +1009,7 @@ class Table implements TableIf
          {
             $col = $this->getColumn($name);
 
-            if( $col->getType() === 'Boolean' )
+            if( ($col->getType() === 'Boolean') && (get_class($col) === 'PlainColumn') )
             {
                if( $value ) $result[$col->getAfixedName()][] = $rowid;
             }
