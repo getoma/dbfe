@@ -70,6 +70,8 @@ class SelectQuery implements QueryBuilderIf
    public $distinct    = false;
    /** @var int */
    public $limit       = null;
+   /** @var SelectQuery */
+   public $union       = null;
 
    public function asString()
    {
@@ -96,6 +98,11 @@ class SelectQuery implements QueryBuilderIf
       if( !empty($this->group) )
       {
          $query .= ' group by ' . (is_array($this->group)? join( ',', $this->group ) : $this->group);
+      }
+      
+      if( isset($this->union) )
+      {
+         $query .= ' union ' . $this->union->asString();
       }
 
       if( !empty($this->order) )
