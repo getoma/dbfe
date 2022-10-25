@@ -16,10 +16,9 @@ interface TypeIf
 
    /**
     * allow overriding of database default in input processing
-    * return null if db default shall be used.
     * @return mixed
     */
-   public function getDefault();
+   public function getDefault($db_default = '');
 
    /**
     * @return array[mixed]
@@ -68,12 +67,11 @@ abstract class Type implements TypeIf
 
    /**
     * allow overriding of database default in input processing
-    * return null if db default shall be used.
     * @return mixed
     */
-   public function getDefault()
+   public function getDefault($db_default = '')
    {
-      return null;
+      return $db_default;
    }
 
    /**
@@ -373,6 +371,15 @@ class Text extends Type
       {
          $this->maxlen = $matches[1];
       }
+   }
+   
+   /**
+    * remove the string limiters from default value as provided from DB
+    * @return mixed
+    */
+   public function getDefault($db_default = '')
+   {
+      return is_string($db_default)? trim( $db_default, "\"'") : $db_default;
    }
 
    public function getFormAttributes(LabelHandlerIf $lblHdl = null, string $prefix = '')

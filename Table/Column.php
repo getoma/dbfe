@@ -283,7 +283,7 @@ class PlainColumn implements ColumnIf
     */
    public function getDefault()
    {
-      return $this->m_type->getDefault() ?? $this->m_default;
+      return $this->m_type->getDefault($this->m_default);
    }
 
    /**
