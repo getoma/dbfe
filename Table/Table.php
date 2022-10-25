@@ -623,7 +623,7 @@ class Table implements TableIf
          $field_name = $col->getAfixedName();
          if( is_array($data[$field_name]) )
          {
-            if( ($col->getType() === 'Boolean') && get_class($col) === 'PlainColumn' )
+            if( ($col->getType() === 'Boolean') && get_class($col) === PlainColumn::class )
             {
                /* special handling for boolean (handled via checkboxes in PlainColumn)
                 * data fields contain the row numbers which are to be set
@@ -1009,7 +1009,7 @@ class Table implements TableIf
          {
             $col = $this->getColumn($name);
 
-            if( ($col->getType() === 'Boolean') && (get_class($col) === 'PlainColumn') )
+            if( ($col->getType() === 'Boolean') && (get_class($col) === PlainColumn::class) )
             {
                if( $value ) $result[$col->getAfixedName()][] = $rowid;
             }
