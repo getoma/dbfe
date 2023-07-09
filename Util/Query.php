@@ -45,7 +45,7 @@ class QueryBuilderUtil
          array_keys( $filter ), $filter );
          
          // combine the where clause
-         return ' where ' . join( ' and ', $whereList );
+         return join( ' and ', $whereList );
       }
       else
       {
@@ -62,6 +62,8 @@ class SelectQuery implements QueryBuilderIf
    public $columns     = [];
    /** @var array[string] */
    public $filter      = [];
+   /** @var array[string] */
+   public $having      = [];
    /** @var array[string] */
    public $order       = [];
    /** @var array[string] */
@@ -93,11 +95,19 @@ class SelectQuery implements QueryBuilderIf
 
       $query .= ' from ' . $this->table_spec;
 
-      $query .= QueryBuilderUtil::generateFilter($this->filter);
+      if( !empty($this->filter) )
+      {
+         $query .= ' where ' . QueryBuilderUtil::generateFilter($this->filter);
+      }
 
       if( !empty($this->group) )
       {
          $query .= ' group by ' . (is_array($this->group)? join( ',', $this->group ) : $this->group);
+      }
+      
+      if( !empty($this->having) )
+      {
+         $query .= ' having ' . QueryBuilderUtil::generateFilter($this->having);
       }
       
       if( isset($this->union) )
@@ -175,7 +185,7 @@ class UpdateQuery implements QueryBuilderIf
       return sprintf( 'update %s set %s %s'
                     , $this->table_spec
                     , join( ',', array_map( function($k,$v) { return "$k=$v"; }, array_keys($this->columns), $this->columns ) )
-                    , QueryBuilderUtil::generateFilter($this->filter) );
+                    , empty($this->filter)? '' : 'where '.QueryBuilderUtil::generateFilter($this->filter) );
    }
 }
 
@@ -199,7 +209,10 @@ class DeleteQuery implements QueryBuilderIf
 
       $query .= ' from ' . $this->table_spec;
 
-      $query .= QueryBuilderUtil::generateFilter($this->filter);
+      if( !empty($this->filter) )
+      {
+         $query .= ' where ' . QueryBuilderUtil::generateFilter($this->filter);
+      }
 
       return $query;
    }
