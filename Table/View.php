@@ -184,8 +184,8 @@ class View implements TableIf
       /* build query to retrieve the contents of this table */
       $query = clone $this->query;
       /* add row selection */
-      if( is_array($selector) )       $query->filter = $selector;
-      else if( is_scalar($selector) ) $query->filter = [ $this->getPrimaryKeyWithCheck() => $selector ];
+      if( is_array($selector) )       $query->filter = array_merge( $query->filter, $selector );
+      else if( is_scalar($selector) ) $query->filter[$this->getPrimaryKeyWithCheck()] = $selector;
       else throw new \LogicException( "invalid selector $selector" );
 
       /* execute query */
