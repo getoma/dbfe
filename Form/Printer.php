@@ -1,6 +1,7 @@
 <?php namespace dbfe\Form;
 use dbfe\Form\Printer\ConfigurationIf;
 use dbfe\Form\Printer\Configuration;
+use dbfe\HtmlElement;
 
 /******************************************************************************************************
  *
@@ -146,25 +147,25 @@ class PrinterException extends \LogicException {}
 abstract class Base extends \dbfe\HtmlElement
 {
    protected $params           = [];
-   protected static $paramlist = ['name', 'type', 'values', 'invalid', 'errmsg', 'label', 'idmanager'];
+   protected static $paramlist = ['name', 'type', 'values', 'invalid', 'errmsg', 'label', 'idmanager', 'fscollect'];
    protected static $htmlsort  = ['type', 'name', 'id', 'class', 'value'];
 
    private        $info       = null;
-   private static $neededInfo = ['prefix', 'tag']; 
+   private static $neededInfo = ['prefix', 'tag'];
 
    /* this function shall return all object-specific information defined in $neededInfo */
    abstract protected function getInfo();
 
    /**
-    * 
+    *
     * @param Printer\Configuration $config
     * @param array $html_attr
     * @throws PrinterException
     */
    function __construct( $config, $html_attr = [] )
    {
-      /* parent constructor, preset html attr, 
-       * ignore content - this item either has no content anyway, or the content is to be handled in derived constructor 
+      /* parent constructor, preset html attr,
+       * ignore content - this item either has no content anyway, or the content is to be handled in derived constructor
        */
       parent::__construct( '', $html_attr, $config->children()->content() );
 
@@ -180,7 +181,7 @@ abstract class Base extends \dbfe\HtmlElement
             $this->attr[$key] = $value;
          }
       }
-      
+
       /* get the object specific information */
       $this->info = $this->getInfo();
       /* check if all needed information was provided */
@@ -249,7 +250,7 @@ abstract class Base extends \dbfe\HtmlElement
  *****************************************************************************************************/
 class Container extends Base
 {
-   protected static $inherit = array( 'values', 'invalid', 'errmsg', 'idmanager');
+   protected static $inherit = array( 'values', 'invalid', 'errmsg', 'idmanager', 'fscollect');
 
    protected function getInfo()
    {
@@ -265,7 +266,7 @@ class Container extends Base
    {
       /* detach content for separate processing */
       $children = $config->detach();
-      
+
       /* call basic constructor */
       parent::__construct($config, $htmldef);
 
@@ -314,7 +315,7 @@ class Container extends Base
  *****************************************************************************************************/
 class Printer extends Container
 {
-   protected $htmlDef = [ 'action' => '', 'method' => 'post' ];
+   protected $htmlDef = [ 'method' => 'post' ];
 
    private static $FormValidatorKeys = [ 'data' => 'values', 'msg' => 'errmsg', 'is_valid' => 'invalid'];
 
@@ -330,6 +331,7 @@ class Printer extends Container
    {
       /* create the ID manager */
       $cfg['idmanager'] = new IdManager();
+      $cfg['fscollect'] = new StringCollector();
 
       /* initialize values/errmsg/valid if not given */
       foreach( self::$FormValidatorKeys as $fvKey => $key )
@@ -362,6 +364,30 @@ class Printer extends Container
 
       /* construct the element */
       parent::__construct($cfg, $this->htmlDef);
+
+      /* prepend the fieldset navigation menu, if there are at least as many fieldsets as defined via nav_threshold */
+      if( !isset($cfg['nav_threshold']) ) // set a default value if not set
+      {
+         $cfg['nav_threshold'] = 5;
+      }
+
+      if( $cfg['nav_threshold'] > 0 ) // 0 -> disabled
+      {
+         $navcfg = $cfg['fscollect']->getList();
+
+         if( count($navcfg) >= $cfg['nav_threshold'] )
+         {
+            $navmenu = new HtmlElement('ul', ['class' => 'nav' ] );
+            foreach( $navcfg as $id => $caption )
+            {
+               $navmenu->push( ['li', [], [ ['a', [ 'href' => '#'.$id ], $caption ] ] ] );
+            }
+            $this->unshift($navmenu);
+
+            /* set up explicit action (->without possible anchor link) */
+            $this->attr['action'] = $_SERVER['REQUEST_URI'];
+         }
+      }
    }
 }
 
@@ -396,7 +422,7 @@ class Atomic extends Base
    protected static $textContainer = [ 'textarea', 'p', 'td', 'th' ];
 
    function __construct( $data )
-   {      
+   {
       if( !($data instanceof ConfigurationIf) ) $data = new Configuration($data);
 
       /* preset the tag with default */
@@ -406,8 +432,8 @@ class Atomic extends Base
       }
 
       /* get list of default html params */
-      $htmlDefs =  isset($data['type']) && isset(static::$htmlDef[$data['type']]) ? static::$htmlDef[$data['type']] 
-                :( isset($data['tag']) && isset(static::$htmlDef[$data['tag']])   ? static::$htmlDef[$data['tag']] 
+      $htmlDefs =  isset($data['type']) && isset(static::$htmlDef[$data['type']]) ? static::$htmlDef[$data['type']]
+                :( isset($data['tag']) && isset(static::$htmlDef[$data['tag']])   ? static::$htmlDef[$data['tag']]
                 :                                                                   [] );
 
       /* create the object */
@@ -494,7 +520,7 @@ class AtomicContainer extends Atomic
       /* first retrieve the defined content */
       $content  = $data['selection'] ?? [];
       unset($data['selection']);
-            
+
       /* retrieve any optional "disabled options" list */
       $disabled = $data['disabled_keys'] ?? [];
       unset($data['disabled_keys']);
@@ -535,7 +561,7 @@ AtomicContainer::_extendStatic();
  *****************************************************************************************************/
 class Element extends Base
 {
-  protected static $inherit = [ 'values', 'invalid', 'errmsg', 'idmanager', 'type', 'name', 'fixed' ];
+  protected static $inherit = [ 'values', 'invalid', 'errmsg', 'idmanager', 'fscollect', 'type', 'name', 'fixed' ];
 
    protected function getInfo()
    {
@@ -632,6 +658,8 @@ class Fieldset extends Container
       parent::__construct($data, []);
       /* create legend */
       $this->unshift( new Atomic([ 'tag' => 'legend', 'content' => $this->params['label'] ] ) );
+      /* register this fieldset */
+      $this->params['fscollect']->add( $this->params['label'], $this->getId() );
    }
 }
 
@@ -832,12 +860,12 @@ class Buttonbox extends Base
    }
 
    function __construct($data)
-   {      
+   {
       $buttons = $data['buttons'];
       unset($data['buttons']);
-      
+
       parent::__construct($data, []);
-      
+
       foreach( $buttons as $type => $value )
       {
          if( is_string($value) )
@@ -867,7 +895,7 @@ class Buttonbox extends Base
 class ArrayGroup extends Base
 {
    /* list of inherited parameters */
-   protected static $inherit = [ 'values', 'invalid', 'errmsg', 'idmanager' ];
+   protected static $inherit = [ 'values', 'invalid', 'errmsg', 'idmanager', 'fscollect' ];
 
    /* list of element-specific fields which may have to be split */
    protected static $split   = [ 'value', 'text' ];
@@ -888,13 +916,13 @@ class ArrayGroup extends Base
             unset($cfg[$key]);
          }
       }
-      
+
       /* detach configuration content and rebuild it while processing it */
       $children_list = $cfg->detach();
 
       /* preset needed parameters (to avoid "array key does not exist" warnings) */
       if( !isset($cfg['name']) ) $cfg['name'] = null;
-      
+
       /* call parent constructor */
       parent::__construct($cfg, []);
 
@@ -1034,7 +1062,7 @@ class ArrayGroup extends Base
          }
          /* store this row as <li> element in the list */
          $this->push( new Atomic([ 'tag' => 'li', 'name' => $cfg['name'].'[]', 'prefix' => 'Entry'
-                                 , 'idmanager' => $cfg['idmanager']
+                                 , 'idmanager' => $cfg['idmanager'], 'fscollect' => $cfg['fscollect']
                                  , 'content' => $row ]) );
       }
    }
@@ -1121,4 +1149,26 @@ class IdManager
     }
     return $id.$count;
   }
+}
+
+class StringCollector
+{
+   private $m_list = [];
+
+   public function add( string $str, $key = null ): void
+   {
+      if( is_null($key) )
+      {
+         $this->m_list[] = $str;
+      }
+      else
+      {
+         $this->m_list[$key] = $str;
+      }
+   }
+
+   public function getList(): array
+   {
+      return $this->m_list;
+   }
 }

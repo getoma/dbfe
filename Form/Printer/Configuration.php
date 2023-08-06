@@ -92,10 +92,10 @@ interface ConfigurationListIf extends \Countable, \ArrayAccess, \IteratorAggrega
 class Configuration implements ConfigurationIf
 {
    /**@var ConfigurationList */
-   private $content    = null;
+   private $content;
 
    /**@var array */
-   private $attributes = [];
+   private $attributes;
 
    function __construct( array $cfg )
    {
