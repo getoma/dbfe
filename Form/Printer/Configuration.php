@@ -137,9 +137,11 @@ class Configuration implements ConfigurationIf
    /**
     * {@inheritDoc}
     * @see \ArrayAccess::offsetGet()
-    * @return string
+    * @return mixed
+    * (php8 requires return type mixed for this method, but this would not be supported by php7)
     */
-   public function & offsetGet($offset): mixed
+   #[\ReturnTypeWillChange]
+   public function & offsetGet($offset)
    {
       return $this->attributes[$offset];
    }
@@ -189,7 +191,10 @@ class Configuration implements ConfigurationIf
  */
 abstract class DummyConfiguration implements ConfigurationIf
 {
-   public function offsetGet($offset): mixed
+
+   // (php8 requires return type mixed for this method, but this would not be supported by php7)
+   #[\ReturnTypeWillChange]
+   public function offsetGet($offset)
    {
       return null;
    }
@@ -536,9 +541,11 @@ class ConfigurationList implements ConfigurationListIf
    /**
     * {@inheritDoc}
     * @see \ArrayAccess::offsetGet()
-    * @return Configuration
+    * @return mixed
+    * (php8 requires return type mixed for this method, but this would not be supported by php7)
     */
-   public function & offsetGet($offset): mixed
+   #[\ReturnTypeWillChange]
+   public function & offsetGet($offset)
    {
       return $this->content[$offset];
    }
@@ -636,9 +643,11 @@ class ConfigurationIterator implements \SeekableIterator, \RecursiveIterator
    /**
     * {@inheritDoc}
     * @see \SeekableIterator::current()
-    * @return Configuration
+    * @return mixed
+    * (php8 requires return type mixed for this method, but this would not be supported by php7)
     */
-   public function current(): mixed
+   #[\ReturnTypeWillChange]
+   public function current()
    {
       return $this->container->offsetGet($this->index);
    }
@@ -651,9 +660,11 @@ class ConfigurationIterator implements \SeekableIterator, \RecursiveIterator
    /**
     * {@inheritDoc}
     * @see \SeekableIterator::key()
-    * @return int
+    * @return mixed
+    * (php8 requires return type mixed for this method, but this would not be supported by php7)
     */
-   public function key(): mixed
+   #[\ReturnTypeWillChange]
+   public function key()
    {
       return $this->valid()? $this->index : null;
    }
