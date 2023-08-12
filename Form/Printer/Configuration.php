@@ -1,8 +1,5 @@
 <?php namespace dbfe\Form\Printer;
 
-use dbfe\LogicException;
-use dbfe\HtmlElementIf;
-
 require_once 'dbfe/Util/Exception.php';
 require_once 'dbfe/Util/HtmlElement.php';
 
@@ -140,8 +137,10 @@ class Configuration implements ConfigurationIf
    /**
     * {@inheritDoc}
     * @see \ArrayAccess::offsetGet()
-    * @return string
+    * @return mixed
+    * (php8 requires return type mixed for this method, but this would not be supported by php7)
     */
+   #[\ReturnTypeWillChange]
    public function & offsetGet($offset)
    {
       return $this->attributes[$offset];
@@ -150,9 +149,8 @@ class Configuration implements ConfigurationIf
    /**
     * {@inheritDoc}
     * @see \ArrayAccess::offsetExists()
-    * @return bool
     */
-   public function offsetExists($offset)
+   public function offsetExists($offset): bool
    {
       return isset($this->attributes[$offset]);
    }
@@ -161,7 +159,7 @@ class Configuration implements ConfigurationIf
     * {@inheritDoc}
     * @see \ArrayAccess::offsetUnset()
     */
-   public function offsetUnset($offset)
+   public function offsetUnset($offset): void
    {
       unset($this->attributes[$offset]);
    }
@@ -170,12 +168,16 @@ class Configuration implements ConfigurationIf
     * {@inheritDoc}
     * @see \ArrayAccess::offsetSet()
     */
-   public function offsetSet($offset, $value)
+   public function offsetSet($offset, $value): void
    {
       $this->attributes[$offset] = $value;
    }
 
-   public function getIterator()
+   /**
+    * {@inheritDoc}
+    * @see \IteratorAggregate::getIterator()
+    */
+   public function getIterator(): \Traversable
    {
       return new \ArrayIterator($this->attributes);
    }
@@ -189,22 +191,25 @@ class Configuration implements ConfigurationIf
  */
 abstract class DummyConfiguration implements ConfigurationIf
 {
+
+   // (php8 requires return type mixed for this method, but this would not be supported by php7)
+   #[\ReturnTypeWillChange]
    public function offsetGet($offset)
    {
       return null;
    }
 
-   public function offsetExists($offset)
+   public function offsetExists($offset): bool
    {
       return false;
    }
 
-   public function offsetUnset($offset)
+   public function offsetUnset($offset): void
    {
       throw new \LogicException('cannot modify');
    }
 
-   public function offsetSet($offset, $value)
+   public function offsetSet($offset, $value): void
    {
       throw new \LogicException('cannot modify');
    }
@@ -224,7 +229,7 @@ abstract class DummyConfiguration implements ConfigurationIf
       return new ConfigurationList();
    }
 
-   public function getIterator()
+   public function getIterator(): \Traversable
    {
       return new \ArrayIterator();
    }
@@ -479,7 +484,7 @@ class ConfigurationList implements ConfigurationListIf
       {
          /* nothing to do */
       }
-      else if( $value instanceof HtmlElementIf )
+      else if( $value instanceof \dbfe\HtmlElementIf )
       {
          $value = new HtmlItem($value);
       }
@@ -519,7 +524,7 @@ class ConfigurationList implements ConfigurationListIf
       }
       else
       {
-         return array_map( 'self::_validate_value', (is_array($list) && isset($list[0]))? $list : [ $list ] );
+         return array_map( self::class.'::_validate_value', (is_array($list) && isset($list[0]))? $list : [ $list ] );
       }
    }
 
@@ -528,7 +533,7 @@ class ConfigurationList implements ConfigurationListIf
     * @see \Countable::count()
     * @return int
     */
-   public function count()
+   public function count(): int
    {
       return count( $this->content );
    }
@@ -536,8 +541,10 @@ class ConfigurationList implements ConfigurationListIf
    /**
     * {@inheritDoc}
     * @see \ArrayAccess::offsetGet()
-    * @return Configuration
+    * @return mixed
+    * (php8 requires return type mixed for this method, but this would not be supported by php7)
     */
+   #[\ReturnTypeWillChange]
    public function & offsetGet($offset)
    {
       return $this->content[$offset];
@@ -548,7 +555,7 @@ class ConfigurationList implements ConfigurationListIf
     * @see \ArrayAccess::offsetExists()
     * @return bool
     */
-   public function offsetExists($offset)
+   public function offsetExists($offset): bool
    {
       return isset($this->content[$offset]);
    }
@@ -557,7 +564,7 @@ class ConfigurationList implements ConfigurationListIf
     * {@inheritDoc}
     * @see \ArrayAccess::offsetUnset()
     */
-   public function offsetUnset($offset)
+   public function offsetUnset($offset): void
    {
       unset($this->content[$offset]);
    }
@@ -566,7 +573,7 @@ class ConfigurationList implements ConfigurationListIf
     * {@inheritDoc}
     * @see \ArrayAccess::offsetSet()
     */
-   public function offsetSet($offset, $value)
+   public function offsetSet($offset, $value): void
    {
       $value = self::_validate_value($value);
       if( is_null($offset) )
@@ -588,7 +595,7 @@ class ConfigurationList implements ConfigurationListIf
     * @see \IteratorAggregate::getIterator()
     * @return ConfigurationIterator
     */
-   public function getIterator()
+   public function getIterator(): \Traversable
    {
       return new ConfigurationIterator($this);
    }
@@ -619,7 +626,7 @@ class ConfigurationIterator implements \SeekableIterator, \RecursiveIterator
     * {@inheritDoc}
     * @see \SeekableIterator::next()
     */
-   public function next()
+   public function next(): void
    {
       $this->index += 1;
    }
@@ -627,9 +634,8 @@ class ConfigurationIterator implements \SeekableIterator, \RecursiveIterator
    /**
     * {@inheritDoc}
     * @see \SeekableIterator::valid()
-    * @return bool
     */
-   public function valid()
+   public function valid(): bool
    {
       return ($this->index < $this->container->count());
    }
@@ -637,14 +643,16 @@ class ConfigurationIterator implements \SeekableIterator, \RecursiveIterator
    /**
     * {@inheritDoc}
     * @see \SeekableIterator::current()
-    * @return Configuration
+    * @return mixed
+    * (php8 requires return type mixed for this method, but this would not be supported by php7)
     */
+   #[\ReturnTypeWillChange]
    public function current()
    {
       return $this->container->offsetGet($this->index);
    }
 
-   public function rewind()
+   public function rewind(): void
    {
       $this->index = 0;
    }
@@ -652,14 +660,16 @@ class ConfigurationIterator implements \SeekableIterator, \RecursiveIterator
    /**
     * {@inheritDoc}
     * @see \SeekableIterator::key()
-    * @return int
+    * @return mixed
+    * (php8 requires return type mixed for this method, but this would not be supported by php7)
     */
+   #[\ReturnTypeWillChange]
    public function key()
    {
       return $this->valid()? $this->index : null;
    }
 
-   public function seek($position)
+   public function seek($position): void
    {
       if( $this->container->offsetExists($position) )
       {
@@ -671,10 +681,13 @@ class ConfigurationIterator implements \SeekableIterator, \RecursiveIterator
       }
    }
 
+
    /**
+    * {@inheritDoc}
+    * @see \RecursiveIterator::getChildren()
     * @return ConfigurationIterator
     */
-   public function getChildren()
+   public function getChildren(): ConfigurationIterator
    {
       if( $this->valid() )
       {
@@ -689,7 +702,7 @@ class ConfigurationIterator implements \SeekableIterator, \RecursiveIterator
    /**
     * @return bool
     */
-   public function hasChildren()
+   public function hasChildren(): bool
    {
       return $this->valid() && $this->current()->children()->count();
    }
