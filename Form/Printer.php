@@ -1135,6 +1135,8 @@ class IdManager
       $id    = substr( $id, 0, -2 ); // remove array() suffix
       $count = '0';                  // preset counter
     }
+    /* remove illegal chars */
+    $id = preg_replace( "/^[^A-Za-z]|[^A-Za-z0-9_:.-]/", "", $id);
     /* check if this id is already used */
     if( array_key_exists( $id, $this->m_idList ) )
     {
