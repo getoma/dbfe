@@ -1,0 +1,14 @@
+{
+    "name": "getoma/dbfe",
+    "description": "generate an easy-to-use interface for displaying and modifying database contents.",
+    "type": "library",
+    "license": "UNLICENSE",
+    "autoload": {
+        "psr-4": {
+            "getoma\\dbfe\\": "src/"
+        }
+    },
+    "require": {
+        "php": ">=8.4"
+    }
+}
