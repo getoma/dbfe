@@ -26,19 +26,18 @@ interface DbfeIf
     * returns true if input accepted, false if not accepted, null if there was no input
     * @return bool|null
     */
-    public function input();
+    public function input(): ?bool;
 
     /**
-     * print page contents to stdout
+     * generate page content
      */
-    public function output();
+    public function output(): \getoma\dbfe\Util\HtmlElement\HtmlElementIf;
 
     /**
-     * print http header to stdout
-     * returns true if normal page output can be written, or false if no further output shall be printed
-     * @return bool
+     * whether page should redirect
+     * @return string|null path to redirect to
      */
-    public function printHeader();
+    public function getRedirect(): ?string;
 
     /**
      * check if a certain action is allowed

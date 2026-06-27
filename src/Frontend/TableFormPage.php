@@ -323,8 +323,8 @@ abstract class TableFormPage extends FormPage
       return $pages;
    }
 
-   /* function to print the entry selection */
-   protected function printEntrySelection()
+   /* function to generate the entry selection */
+   protected function printEntrySelection(): \getoma\dbfe\Util\HtmlElement\HtmlElementIf
    {
       $query = $this->configureEntrySelection();
       /* generate default query if none given */
@@ -364,7 +364,7 @@ abstract class TableFormPage extends FormPage
 
       if( $this->isAllowed('create') )
       {
-         $list[] = [ 'li', [], [ [ 'a', [ 'href' => $this->selflink() . "/?id=0" ], $this->getLabelHdl()->get('Create entry') ] ] ];
+         $list[] = [ 'li', [], [ [ 'a', [ 'href' => $this->selflink() . "?id=0" ], $this->getLabelHdl()->get('Create entry') ] ] ];
       }
       $del = $this->isAllowed('delete');
 
@@ -373,9 +373,9 @@ abstract class TableFormPage extends FormPage
          $sublist = [];
          foreach( $group_entries as $id => $name )
          {
-            $entry = [ [ 'a', [ 'href' => $this->selflink() . "/?id=$id" ], $name ] ];
+            $entry = [ [ 'a', [ 'href' => $this->selflink() . "?id=$id" ], $name ] ];
 
-            if( $del ) $entry[] = [ 'a', [ 'href' => $this->selflink() . "/?id=$id&amp;delete=1", 'class' => 'delete' ], $this->getLabelHdl()->get('delete') ];
+            if( $del ) $entry[] = [ 'a', [ 'href' => $this->selflink() . "?id=$id&amp;delete=1", 'class' => 'delete' ], $this->getLabelHdl()->get('delete') ];
 
             $sublist[] = [ 'li', [], $entry ];
          }
@@ -395,9 +395,7 @@ abstract class TableFormPage extends FormPage
       $class = $is_grouped? 'PageMenu' : 'PageSel';
 
       $html = new HtmlElement( 'ul', [ 'class' => $class.($del?' delete':'') ], $list );
-
-      /* print it */
-      print $html->asHtml() . "\n";
+      return $html;
    }
 
    /**
@@ -425,23 +423,26 @@ abstract class TableFormPage extends FormPage
     * {@inheritDoc}
     * @see \dbfe\formPage::output()
     */
-   public function output()
+   public function output(): \getoma\dbfe\Util\HtmlElement\HtmlElementIf
    {
       if( is_null($this->m_entry_id) )
       {
-         $this->printEntrySelection();
+         return $this->printEntrySelection();
       }
       else
       {
-         parent::output();
+         $html = parent::output();
+         $backlink = [ 'p', [ 'id' => 'backlink' ], [
+            [ 'a', ['href' => $this->selflink() ], [ $this->getLabelHdl()->get('back') ] ]
+         ]];
 
-         print "\n" . '<p id="backlink"><a href="' . $this->selflink() . '">' . $this->getLabelHdl()->get('back') . '</a></p>' . "\n";
+         return new HtmlElement('', content: [ $html, $backlink ] );
       }
    }
 
-   public function input()
+   public function input(): ?bool
    {
-      if( !isset( $this->m_entry_id ) ) return;
+      if( !isset( $this->m_entry_id ) ) return null;
 
       if( $_REQUEST['delete'] ?? false )
       {

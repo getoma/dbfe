@@ -9,7 +9,7 @@ use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
  * base class to implement a plain page, which may display database contents,
  * but does not provide the means to manipulate the database contents
  */
-class PlainPage implements DbfeIf
+abstract class PlainPage implements DbfeIf
 {
    /******************************************************
     * MEMBER VARIABLES
@@ -138,7 +138,7 @@ class PlainPage implements DbfeIf
     * {@inheritDoc}
     * @see dbfeIf::input()
     */
-   public function input()
+   public function input(): ?bool
    {
       return null;
    }
@@ -147,17 +147,15 @@ class PlainPage implements DbfeIf
     * {@inheritDoc}
     * @see dbfeIf::output()
     */
-   public function output()
-   {
-   }
+   abstract public function output(): \getoma\dbfe\Util\HtmlElement\HtmlElementIf;
 
    /**
     * {@inheritDoc}
-    * @see dbfeIf::printHeader()
+    * @see dbfeIf::getRedirect()
     */
-   public function printHeader()
+   public function getRedirect(): ?string
    {
-      $result = true;
+      $link = null;
       if( isset( $this->m_redirect_to ) )
       {
          if( $this->m_redirect_to[0] === '/' )
@@ -172,15 +170,8 @@ class PlainPage implements DbfeIf
          {
             $link = $this->selflink() . $this->m_redirect_to;
          }
-         header( 'Location: ' . $link );
-         $result = false;
       }
-      else
-      {
-         header("Content-type: text/html; charset=UTF-8");
-         header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + (30))); // 30 seconds
-      }
-      return $result;
+      return $link;
    }
 
    /**
