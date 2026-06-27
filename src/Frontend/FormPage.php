@@ -53,7 +53,7 @@ abstract class FormPage extends PlainPage
     * {@inheritDoc}
     * @see plainPage::output()
     */
-   public function output()
+   public function output(): \getoma\dbfe\Util\HtmlElement\HtmlElementIf
    {
       $values = $this->getData();
 
@@ -73,10 +73,10 @@ abstract class FormPage extends PlainPage
 
       $this->callHook('printform', $this);
 
-      print $form->asHtml() . "\n";
+      return $form;
    }
 
-   public function input()
+   public function input(): ?bool
    {
       if( isset( $this->m_input_valid ) ) return $this->m_input_valid;
 
