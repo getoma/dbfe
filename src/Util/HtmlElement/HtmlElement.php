@@ -32,19 +32,23 @@ class HtmlElement implements HtmlElementIf
 
    public function asHtml($indent = 0, $shift = 2)
    {
-      $attr = $this->attr;
-      $htmlattr = join( ' ', array_map(
-                  function ($key) use ($attr)
-                  {
-                     if( $attr[$key] === true ) return $key;
-                     else if( $attr[$key] === false ) return '';
-                     else return sprintf( '%s="%s"', $key, $attr[$key] );
-                  }, array_keys( $this->attr ) ) );
+      $result = '';
       $indentstr = str_repeat( ' ', $indent );
+      $is_void = !empty($this->tag) && in_array( $this->tag, self::VOID_ELEMENTS );
+      $this_shift = empty($this->tag)? 0 : $shift;
 
-      $is_void = in_array( $this->tag, self::VOID_ELEMENTS );
-
-      $result = sprintf( "%s<%s%s>", $indentstr, $this->tag, ($htmlattr? ' '.$htmlattr : '') );
+      if( !empty($this->tag) ) // empty tag --> just a list of sub elements, no parent tag to print
+      {
+         $attr = $this->attr;
+         $htmlattr = join( ' ', array_map(
+                     function ($key) use ($attr)
+                     {
+                        if( $attr[$key] === true ) return $key;
+                        else if( $attr[$key] === false ) return '';
+                        else return sprintf( '%s="%s"', $key, $attr[$key] );
+                     }, array_keys( $this->attr ) ) );
+         $result = sprintf( "%s<%s%s>", $indentstr, $this->tag, ($htmlattr? ' '.$htmlattr : '') );
+      }
 
       if( !$is_void )
       {
@@ -70,11 +74,11 @@ class HtmlElement implements HtmlElementIf
                   {
                      if( is_object( $subitem ) )
                      {
-                        $result .= $subitem->asHtml( $indent + $shift, $shift ) . "\n";
+                        $result .= $subitem->asHtml( $indent + $this_shift, $shift ) . "\n";
                      }
                      else
                      {
-                        $result .= $indentstr . str_repeat( ' ', $shift ) . $subitem . "\n";
+                        $result .= $indentstr . str_repeat( ' ', $this_shift ) . $subitem . "\n";
                      }
                   }
                   $result .= "$indentstr";
@@ -86,7 +90,7 @@ class HtmlElement implements HtmlElementIf
                $result .= $this->content[0];
             }
          }
-         $result .= "</" . $this->tag . ">";
+         if( $this->tag ) $result .= "</" . $this->tag . ">";
       }
       return $result;
    }
