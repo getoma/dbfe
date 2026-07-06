@@ -4,6 +4,8 @@ namespace getoma\dbfe\Frontend;
 
 use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
 use getoma\dbfe\Table\Factory;
+use getoma\dbfe\Table\Table;
+use getoma\dbfe\Table\TableIf;
 use getoma\dbfe\Table\TableReference;
 use getoma\dbfe\Util\Exception\DatabaseError;
 use getoma\dbfe\Util\HtmlElement\HtmlElement;
@@ -30,9 +32,8 @@ abstract class TableFormPage extends FormPage
    /**
     * get a loaded table
     * @param string $name|null - name of table or null for main table
-    * @return \dbfe\Table
     */
-   protected function getTable(?string $name = null)
+   protected function getTable(?string $name = null): \getoma\dbfe\Table\Table
    {
       return is_null($name)? reset($this->m_table_list) : $this->m_table_list[$name]??null;
    }
@@ -100,38 +101,15 @@ abstract class TableFormPage extends FormPage
       return [];
    }
 
-   private function loadView( string $name, SelectQuery $spec, Factory $fact )
+   private function loadView( string $name, SelectQuery $spec ): TableIf
    {
-      /* check validity of the view specification */
-      if( !is_array($spec) )
-      {
-         /* it's in "simplified" format (= only the query given) */
-         if( $spec instanceof SelectQuery )
-         {
-            /* extend it to full format */
-            $view_spec = [ 'query' => $spec ];
-         }
-         else /* it's something invalid */
-         {
-            throw new \LogicException("unknown input for view specification of $name");
-         }
-      }
-
       /* generate the view */
-      $view = new \getoma\dbfe\Table\View( $name, $view_spec['query'], $this->getDbh() );
+      $view = new \getoma\dbfe\Table\View( $name, $spec, $this->getDbh() );
 
-      /* check if the spec specifies the parent
-       * - use the main table otherwise (unless this view IS the main table)
-       */
-      if( !isset($view_spec['parent']) && count($this->m_table_list) )
+      /* register the reference to this view */
+      if( count($this->m_table_list) )
       {
-         $view_spec['parent'] = $this->getTable()->getName();
-      }
-
-      /* load the parent and register the reference to this view */
-      if( isset($view_spec['parent']) )
-      {
-         $parent      = $fact->loadTable( $view_spec['parent'], true );
+         $parent      = $this->getTable();
          $viewColumns = $view->getColumns();
          $linkColName = reset($viewColumns)->getName();
          /* link is done via the first column of the view,
@@ -148,6 +126,7 @@ abstract class TableFormPage extends FormPage
             throw new DatabaseError('Table ' . $parent->getName() . " has no column $linkColName to attach view $name to.");
          }
       }
+      return $view;
    }
 
    function __construct($options = [])
@@ -170,7 +149,7 @@ abstract class TableFormPage extends FormPage
             if( isset($views[$tab_name]) )
             {
                /* load view */
-               $this->m_table_list[$tab_name] = $this->loadView($tab_name, $views[$tab_name], $fact);
+               $this->m_table_list[$tab_name] = $this->loadView($tab_name, $views[$tab_name]);
             }
             else
             {
@@ -183,7 +162,7 @@ abstract class TableFormPage extends FormPage
          {
             if( !isset($this->m_table_list[$view_name] ) )
             {
-               $this->m_table_list[$view_name] = $this->loadView( $view_name, $spec, $fact );
+               $this->m_table_list[$view_name] = $this->loadView( $view_name, $spec);
             }
          }
          $this->getTable()->useFieldsetsForReferences(true);

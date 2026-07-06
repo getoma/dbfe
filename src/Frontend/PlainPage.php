@@ -3,6 +3,7 @@
 namespace getoma\dbfe\Frontend;
 
 use getoma\dbfe\Util\LabelHandler\DummyLabelHandler;
+use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
 
 /**
  * base class to implement a plain page, which may display database contents,
@@ -51,15 +52,14 @@ class PlainPage implements DbfeIf
    }
 
    /**
-    * @return \dbfe\LabelHandlerIf
     */
-   protected function getLabelHdl()
+   protected function getLabelHdl(): LabelHandlerIf
    {
       return $this->m_lblhdl;
    }
 
    /**
-    * @param string|int redirectTo
+    * @param string|int $target
     */
    protected function redirectTo( $target )
    {
