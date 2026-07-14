@@ -2,6 +2,8 @@
 
 namespace getoma\dbfe\Table\Column;
 
+use getoma\dbfe\Form\Printer\Configuration\ConfigurationIf;
+use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
 use getoma\dbfe\Form\Validator\Constraint\Constraint;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
 
@@ -11,25 +13,23 @@ interface ColumnIf
     * add properties to the html output for this column
     * @param array $prop
     */
-   public function addFormProperties(array $prop);
+   public function addFormProperties(array $prop): void;
 
    /**
     * get a form specification that can be used as input to Form\Printer
-    * @return \dbfe\Form\Printer\Configuration|\dbfe\Form\Printer\ConfigurationList
     */
-   public function getFormDefinition(LabelHandlerIf $lblHdl, array $data = [], bool $as_array = false);
+   public function getFormDefinition(LabelHandlerIf $lblHdl, array $data = [], bool $as_array = false): ConfigurationIf|ConfigurationListIf;
 
    /**
     * get the column name
-    * @return string
     */
-   public function getName();
+   public function getName(): string;
 
    /**
     * get the type of the column
     * @return string
     */
-   public function getType();
+   public function getType(): string;
 
    /**
     * get or set column specifier to use in "select" query
@@ -37,71 +37,63 @@ interface ColumnIf
     * @param string $spec
     * @return string
     */
-   public function sqlColumnSpec($spec = null);
+   public function sqlColumnSpec(?string $spec = null): string;
 
    /**
     * get the default value of the column
-    * @return mixed
     */
-   public function getDefault();
+   public function getDefault(): mixed;
 
    /**
     * whether this field needs to be filled with a value when writing to the DB
     * It is required if the column is "not null" AND there is no default value
-    * @return boolean
     */
-   public function isRequired();
+   public function isRequired(): bool;
 
    /**
-    * @return boolean
     */
-   public function isAutoIncrement();
+   public function isAutoIncrement(): bool;
 
    /**
-    * @return boolean
     */
-   public function isPrimaryKey();
+   public function isPrimaryKey(): bool;
 
    /**
-    * @return boolean
     */
-   public function isUnique();
+   public function isUnique(): bool;
 
    /**
-    * @return boolean
     */
-   public function isFixed();
+   public function isFixed(): bool;
 
    /**
     * @return string
     */
-   public function getAfixedName( bool $as_array = false );
+   public function getAfixedName( bool $as_array = false ): string;
 
    /**
     * provide column specific form\validator configuration
-    * @return Form\Validator\Profile
     */
-   public function getValidatorConfig(bool $as_array = false);
+   public function getValidatorConfig(bool $as_array = false): \getoma\dbfe\Form\Validator\Profile;
 
    /**
     * whether this column shall be skipped in the processing
     * return current status of skipping
-    * @return bool
     */
-   public function doSkip(?bool $status = null);
+   public function doSkip(?bool $status = null): bool;
 
    /**
     * add a custom constraint from the application
     */
-   public function setCustomConstraint( Constraint $constraint );
+   public function setCustomConstraint( Constraint $constraint ): void;
 
    /**
     * make a column required although the database itself allows NULL values
     */
-   public function makeRequired();
+   public function makeRequired(): void;
 
    /**
     * make a column "fixed" - it cannot be modified anymore once initially set
     */
-   public function makeFixed();
+   public function makeFixed(): void;
 }

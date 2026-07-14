@@ -10,26 +10,20 @@ use getoma\dbfe\Util\Exception\UploadException;
  */
 class DirectoryFileHandler extends BaseFileHandler
 {
-   /** @var string */
-   protected $base_dir;
-   /** @var string */
-   protected $accept;
-   /** @var string */
-   protected $accept_re;
+   protected readonly string $base_dir;
 
    /**
-    * @param string $base_dir
-    * @param string $accept
+    * constructor
     */
    function __construct( string $base_dir, string $accept = '*/*' )
    {
+      $this->base_dir = rtrim($base_dir, '/') . '/';
       parent::__construct($accept);
-      $this->base_dir = $base_dir . '/';
    }
 
-   protected function storeFile( $row_id, array &$file_data, $field_value, string $file_ext )
+   protected function storeFile(?string $row_id, array $file_data, ?string $field_value, string $file_ext): string
    {
-      if( empty($row_id) ) throw new \LogicException('Directory File Handler requires row identifier to create a unique filename!');
+      if( !$row_id ) throw new \LogicException('Directory File Handler requires row identifier to create a unique filename!');
 
       /* generate the filename: <clean(value of name column)>.<ext> */
       $filename = preg_replace( '#[^a-z0-9äüöß]#i', '', $row_id ) . '.' . $file_ext;
@@ -39,7 +33,7 @@ class DirectoryFileHandler extends BaseFileHandler
          $this->delete($field_value);
 
       /* store the new file */
-      if( ! move_uploaded_file( $file_data['tmp_name'] , $this->base_dir . '/' . $filename ) )
+      if( !move_uploaded_file( $file_data['tmp_name'] , $this->base_dir . '/' . $filename ) )
       {
          throw new UploadException( 'cannot store file' );
       }
@@ -52,7 +46,7 @@ class DirectoryFileHandler extends BaseFileHandler
     * {@inheritDoc}
     * @see FileHandlerIf::getFileUrl()
     */
-   public function getFileUrl($file_id)
+   public function getFileUrl(string $file_id): ?string
    {
       $fname = $this->getFileName($file_id);
 
@@ -73,16 +67,16 @@ class DirectoryFileHandler extends BaseFileHandler
     * {@inheritDoc}
     * @see FileHandlerIf::getFileName()
     */
-   public function getFileName( $file_id )
+   public function getFileName( string $file_id ): ?string
    {
       return isset($file_id) && file_exists( $this->base_dir . $file_id )? $file_id : null;
    }
 
-   public function delete(string $file_id)
+   public function delete(string $file_id): void
    {
       if( isset( $file_id ) && file_exists( $this->base_dir . $file_id ) )
       {
-         if( ! unlink( $this->base_dir . $file_id ) )
+         if( !unlink( $this->base_dir . $file_id ) )
          {
             throw new UploadException( 'cannot delete old file' );
          }

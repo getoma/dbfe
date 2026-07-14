@@ -13,30 +13,21 @@ use getoma\dbfe\Util\QueryBuilder\SelectQuery;
 
 class View implements TableIf
 {
-   /**@var string */
-   protected $name;
+   /** @var ViewColumn[] */
+   protected array $m_columns;
 
-   /**@var SelectQuery */
-   protected $query;
-
-   /**@var \PDO */
-   protected $m_dbh;
-
-   /**@var array[ViewColumn] */
-   protected $m_columns;
-
-   /**@var Boolean  default setting for "hideEmpty" */
+   /* default setting for "hideEmpty" */
    public static $HIDE_EMPTY = false;
 
-   /**@var Boolean  hide empty */
-   protected $m_hide_empty;
+   /* hide empty */
+   protected bool $m_hide_empty;
 
-   function __construct(string $name, SelectQuery $query, \PDO $dbh )
+   function __construct(
+      protected readonly string $name,
+      protected readonly SelectQuery $query,
+      protected readonly \PDO $dbh
+   )
    {
-      $this->name  = $name;
-      $this->query = $query;
-      $this->m_dbh = $dbh;
-
       $this->m_hide_empty = self::$HIDE_EMPTY;
 
       $first = true;
@@ -58,70 +49,69 @@ class View implements TableIf
       $this->m_hide_empty = $hide;
    }
 
-   public function linkReferences( Factory $factory, $options = 0 )
+   public function linkReferences( Factory $factory, int $options = 0 ): void
    {
       // N/A
    }
 
-   public function getName()
+   public function getName(): string
    {
       return $this->name;
    }
 
-   public function getColumns()
+   public function getColumns(): array
    {
       return $this->m_columns;
    }
 
-   public function getColumn(string $name)
+   public function getColumn(string $name): ColumnIf
    {
       return $this->m_columns[$name];
    }
 
-   public function getColumnCount()
+   public function getColumnCount(): int
    {
       return count($this->query->columns);
    }
 
-   public function getNameColumn()
+   public function getNameColumn(): ColumnIf
    {
       throw new \LogicException('getNameColumn() for View not supported, yet!');
    }
 
-   public function getIdColumn()
+   public function getIdColumn(): ?ColumnIf
    {
       return null;
    }
 
-   public function getNonIdColumns()
+   public function getNonIdColumns(): array
    {
       return $this->getColumns();
    }
 
    /**
     * get all primary key columns
-    * @return ViewColumn
     */
-   public function getPrimaryKey()
+   public function getPrimaryKey(): array
    {
       return [];
    }
 
    /**
     * get all columns EXCEPT primary key columns
-    * @return ColumnIf
+    * @return ColumnIf[]
     */
-   public function getNonKeyColumns()
+   public function getNonKeyColumns(): array
    {
       return $this->getColumns();
    }
 
-   public function hasExternalReferences()
+   public function hasExternalReferences(): bool
    {
       return false;
    }
 
-   public function getExternalReferences()
+   public function getExternalReferences(): array
    {
       return [];
    }
@@ -131,32 +121,33 @@ class View implements TableIf
       throw new \LogicException("Views can't have references!");
    }
 
-   public function useFieldsetsForReferences(bool $status = null)
+   public function useFieldsetsForReferences(?bool $status = null): bool
    {
       /* nothing to do */
+      return false;
    }
 
-   public function setOrdering($order)
+   public function setOrdering(string|array $order): void
    {
       $this->query->order = $order;
    }
 
-   public function hasId(int $id)
+   public function hasId(int $id): bool
    {
       throw new \LogicException('check for id not supported, yet!');
    }
 
-   public function setFilehandler( string $column, FileHandlerIf $fh, int $display_type = DispType::link, bool $support_delete = false )
+   public function setFilehandler( string $column, FileHandlerIf $fh, DispType $display_type = DispType::link, bool $support_delete = false ): void
    {
       throw new \LogicException("Views can't have uploads!");
    }
 
-   public function setValueSelection(string $column, $selection)
+   public function setValueSelection(string $column, array|SelectQuery $selection): void
    {
       throw new \LogicException("Views can't have value selections!");
    }
 
-   public function hasUploads()
+   public function hasUploads(): bool
    {
       return false;
    }
@@ -185,7 +176,7 @@ class View implements TableIf
       }
    }
 
-   public function getFormData($selector = [])
+   public function getFormData(int|string|array $selector = []): array
    {
       $result = [];
 
@@ -197,8 +188,8 @@ class View implements TableIf
       else throw new \LogicException( "invalid selector $selector" );
 
       /* execute query */
-      $data = $this->m_dbh->query( $query->asString() );
-      if( !$data ) throw new DatabaseError($this->m_dbh->errorCode());
+      $data = $this->dbh->query( $query->asString() );
+      if( !$data ) throw new DatabaseError($this->dbh->errorCode());
 
       $result[$this->getName() . "___empty"] = ($data->rowCount() === 0);
 
@@ -213,42 +204,42 @@ class View implements TableIf
       return $result;
    }
 
-   public function query(SelectQuery $query)
+   public function query(SelectQuery $query): \PDOStatement
    {
       throw new \LogicException('custom query for View not supported!');
    }
 
-   public function getFormValidation(bool $skip_auto_increment = false, bool $as_array = false, $skip = [])
+   public function getFormValidation(bool $skip_auto_increment = false, bool $as_array = false, $skip = []): \getoma\dbfe\Form\Validator\Profile
+   {
+      return new \getoma\dbfe\Form\Validator\Profile();
+   }
+
+   public function insertData(array $data, bool $updateOnDuplicate = false): void
+   {
+      /* nothing to do */
+   }
+
+   public function dropRowset(array $id_columns, array $id_values): void
+   {
+      /* nothing to do */
+   }
+
+   public function lastInsertId(): ?int
    {
       return null;
    }
 
-   public function insertData(array $data, bool $updateOnDuplicate = false)
+   public function deleteRowsFromFv(array $data): void
    {
       /* nothing to do */
    }
 
-   public function dropRowset(array $id_columns, array $id_values)
+   public function dropRow(mixed $identifier): void
    {
       /* nothing to do */
    }
 
-   public function lastInsertId()
-   {
-      return null;
-   }
-
-   public function deleteRowsFromFv(array $data)
-   {
-      /* nothing to do */
-   }
-
-   public function dropRow($identifier)
-   {
-      /* nothing to do */
-   }
-
-   public function updateRow(array $data, $identifier)
+   public function updateRow(array $data, mixed $identifier): void
    {
       /* nothing to do */
    }
@@ -281,9 +272,8 @@ class ViewColumn implements ColumnIf
    /**
     * {@inheritDoc}
     * @see \dbfe\ColumnIf::getFormDefinition()
-    * @return \dbfe\Form\Printer\Configuration
     */
-   public function getFormDefinition(LabelHandlerIf $lblHdl, array $data = [], bool $as_array = false)
+   public function getFormDefinition(LabelHandlerIf $lblHdl, array $data = [], bool $as_array = false): \getoma\dbfe\Form\Printer\Configuration\Configuration
    {
       return new \getoma\dbfe\Form\Printer\Configuration\Configuration(
          array_merge( [ 'name'  => $this->getAfixedName($as_array),
@@ -292,84 +282,84 @@ class ViewColumn implements ColumnIf
                         $this->m_formProp ) );
    }
 
-   public function isRequired()
+   public function isRequired(): bool
    {
       return false;
    }
 
-   public function isAutoIncrement()
+   public function isAutoIncrement(): bool
    {
       return false;
    }
 
-   public function doSkip(bool $status = null)
+   public function doSkip(?bool $status = null): bool
    {
       if( isset($status) ) $this->skip = $status;
       return $this->skip;
    }
 
-   public function getName()
+   public function getName(): string
    {
       return $this->name;
    }
 
-   public function getType()
+   public function getType(): string
    {
       return 'Cell';
    }
 
-   public function sqlColumnSpec($spec = null)
+   public function sqlColumnSpec(?string $spec = null): string
    {
       throw new \LogicException("sqlColumnSpec not supported for View Column");
    }
 
-   public function addFormProperties(array $prop)
+   public function addFormProperties(array $prop): void
    {
       $this->m_formProp += $prop;
    }
 
-   public function getValidatorConfig(bool $as_array = false)
+   public function getValidatorConfig(bool $as_array = false): \getoma\dbfe\Form\Validator\Profile
    {
-      return null;
+      throw new \LogicException("validator config not supported for View Column");
    }
 
-   public function isUnique()
+   public function isUnique(): bool
    {
       return false;
    }
 
-   public function getDefault()
+   public function getDefault(): mixed
    {
       return null;
    }
 
-   public function isPrimaryKey()
+   public function isPrimaryKey(): bool
    {
       return $this->isKey;
    }
 
-   public function isFixed()
+   public function isFixed(): bool
    {
       return true;
    }
 
-   public function getAfixedName(bool $as_array = false)
+   public function getAfixedName(bool $as_array = false): string
    {
       /* no specific array support for view, this is only needed for <input> names */
       return PlainColumn::afixedName($this->name, $this->view_name, false);
    }
 
-   public function setCustomConstraint(\getoma\dbfe\Form\Validator\Constraint\Constraint $constraint)
+   public function setCustomConstraint(\getoma\dbfe\Form\Validator\Constraint\Constraint $constraint): void
    {
       // nothing to do
    }
 
-   public function makeRequired()
+   public function makeRequired(): void
    {
       // yeah, whatever...
    }
 
-   public function makeFixed()
+   public function makeFixed(): void
    {
 
    }

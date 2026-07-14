@@ -9,8 +9,8 @@ use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
  */
 abstract class FormPage extends PlainPage
 {
-   protected $m_fv;
-   protected $m_input_valid = null;
+   protected ?\getoma\dbfe\Form\Validator\Validator $m_fv = null;
+   protected ?bool $m_input_valid = null;
 
    /******************************************************
     * PROTECTED MEMBER VARIABLES, USED BY DERIVED CLASSES
@@ -23,20 +23,18 @@ abstract class FormPage extends PlainPage
 
    /**
     * return content of Form\Validator definition
-    * @return Form\Validator\Profile
     */
-   abstract protected function getValidatorConfig();
+   abstract protected function getValidatorConfig(): \getoma\dbfe\Form\Validator\Profile;
 
    /**
     * process the validated data in $this->fv
     */
-   abstract protected function processInput();
+   abstract protected function processInput(): void;
 
    /**
     * get complete block of data of the current page
-    * @return array
     */
-   abstract protected function getData( bool $refetch = false );
+   abstract protected function getData( bool $refetch = false ): array;
 
    /**
     * return content of the form as Form\Printer structure

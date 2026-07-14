@@ -5,14 +5,14 @@ namespace getoma\dbfe\Frontend;
 abstract class FullTablesFormPage extends TableFormPage
 {
    /**
-    * @var array[string]
+    * @var string[]
     */
-   private $m_table_selection = [];
+   private array $m_table_selection = [];
 
    /**
-    * @return array[String]
+    * @return string[]
     */
-   abstract protected function configureTableSelection();
+   abstract protected function configureTableSelection(): array;
 
    function __construct($options = [])
    {
@@ -21,17 +21,17 @@ abstract class FullTablesFormPage extends TableFormPage
       $this->m_as_array = true;
    }
 
-   protected function getTableName()
+   protected function getTableName(): ?string
    {
       return isset($this->m_entry_id)? $this->m_table_selection[$this->m_entry_id-1] : null;
    }
 
-   protected function configureTableList()
+   protected function configureTableList(): array
    {
       return isset($this->m_entry_id)? [ $this->m_table_selection[$this->m_entry_id-1] ] : [];
    }
 
-   protected function configureEntrySelection()
+   protected function configureEntrySelection(): array
    {
       $result = array_map( function($name)
       {
@@ -46,7 +46,7 @@ abstract class FullTablesFormPage extends TableFormPage
       return $result;
    }
 
-   protected function readEntryId()
+   protected function readEntryId(): ?int
    {
       $tabcnt = count($this->m_table_selection);
 
@@ -56,7 +56,7 @@ abstract class FullTablesFormPage extends TableFormPage
       return ($id>0)&&($id<=$tabcnt)? $id : null;
    }
 
-   public function getTitle()
+   public function getTitle(): string
    {
       if( isset($this->m_entry_id) )
       {
@@ -68,7 +68,7 @@ abstract class FullTablesFormPage extends TableFormPage
       }
    }
 
-   public function isAllowed($action, $subject = null)
+   public function isAllowed(string $action, ?string $subject = null): bool
    {
       if( ($action === 'delete') || ($action === 'create') ) return false;
       return parent::isAllowed($action);

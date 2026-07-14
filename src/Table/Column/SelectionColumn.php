@@ -2,6 +2,8 @@
 
 namespace getoma\dbfe\Table\Column;
 
+use getoma\dbfe\Form\Printer\Configuration\ConfigurationIf;
+use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
 
 /**
@@ -9,20 +11,19 @@ use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
  */
 class SelectionColumn extends PlainColumn
 {
-   /** @var array */
-   protected $selection = [];
-
-   public function __construct($structure, string $table, array $selection )
+   public function __construct(
+      PlainColumn|array $structure,
+      string $table,
+      protected readonly array $selection,
+   )
    {
       parent::__construct( $structure, $table, false );
-      $this->selection = $selection;
    }
 
    /**
     * get a form specification that can be used as input to Form\Printer
-    * @return Form\Printer\Configuration
     */
-   public function getFormDefinition(LabelHandlerIf $lblHdl, array $data = [], bool $as_array = false )
+   public function getFormDefinition(LabelHandlerIf $lblHdl, array $data = [], bool $as_array = false ): ConfigurationIf|ConfigurationListIf
    {
       /* first get the list of already stored values */
       $selection = array_filter( $data[$this->getAfixedName()]??[] );
@@ -39,7 +40,7 @@ class SelectionColumn extends PlainColumn
 
       return new \getoma\dbfe\Form\Printer\Configuration\Configuration(
          [ 'name'  => $this->getAfixedName($as_array),
-           'label' => $lblHdl->get( $this->getName(), $this->m_tablename ),
+           'label' => $lblHdl->get( $this->getName(), $this->tablename ),
            'fixed' => $this->isFixed(),
            'type'  => 'select', 'selection' => $selection ] );
    }

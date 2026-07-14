@@ -2,6 +2,7 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
+use getoma\dbfe\Form\Validator\Constraint\ConstraintIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
 
 /**
@@ -27,7 +28,7 @@ class Text extends Type
     * remove the string limiters from default value as provided from DB
     * @return mixed
     */
-   public function getDefault($db_default = '')
+   public function getDefault($db_default = ''): mixed
    {
       return is_string($db_default)? trim( $db_default, "\"'") : $db_default;
    }
@@ -44,7 +45,7 @@ class Text extends Type
       }
    }
 
-   public function getConstraint()
+   public function getConstraint(): ?ConstraintIf
    {
       return null;
    }

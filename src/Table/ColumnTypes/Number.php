@@ -2,6 +2,7 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
+use getoma\dbfe\Form\Validator\Constraint\ConstraintIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
 use getoma\dbfe\Form\Validator\Constraint\FastConstructors as fvc;
 
@@ -143,7 +144,7 @@ class Number extends Type
       return $result;
    }
 
-   public function getConstraint()
+   public function getConstraint(): ConstraintIf
    {
       return $this->is_float? fvc::Number($this->min, $this->max) : fvc::Integer($this->min, $this->max);
    }

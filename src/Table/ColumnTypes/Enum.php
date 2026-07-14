@@ -2,6 +2,7 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
+use getoma\dbfe\Form\Validator\Constraint\ConstraintIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
 use getoma\dbfe\Form\Validator\Constraint\FastConstructors as fvc;
 
@@ -36,7 +37,7 @@ class Enum extends Type
       return [ 'type' => 'select', 'selection' => array_merge( [''=>'N/A'], $values ) ];
    }
 
-   public function getConstraint()
+   public function getConstraint(): ConstraintIf
    {
       return fvc::Set(array_keys($this->values));
    }

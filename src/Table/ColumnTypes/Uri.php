@@ -2,6 +2,7 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
+use getoma\dbfe\Form\Validator\Constraint\ConstraintIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
 
 class Uri extends Text
@@ -13,7 +14,7 @@ class Uri extends Text
       return $result;
    }
 
-   public function getConstraint()
+   public function getConstraint(): ?ConstraintIf
    {
       return parent::getConstraint(); // TODO
    }

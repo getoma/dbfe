@@ -3,54 +3,53 @@
 namespace getoma\dbfe\Table\Column;
 
 use getoma\dbfe\Form\Printer\Configuration\Configuration;
+use getoma\dbfe\Form\Printer\Configuration\ConfigurationIf;
+use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
 use getoma\dbfe\Table\Table;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
 use getoma\dbfe\Util\QueryBuilder\SelectQuery;
+use getoma\dbfe\Util\Exception\DatabaseStructureIssue;
 
 /**
  * a db table column which references another table via foreign key constraint
  */
 class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
 {
-   /** @var Table */
-   protected $refTable = null;
-   /** @var mixed */
-   protected $query    = null;
-   /** @var mixed */
-   protected $disabled = null;
+   protected array|SelectQuery $query;
+   protected array|SelectQuery $disabledKeys = [];
 
-   public function __construct($structure, string $table, Table $ref)
+   public function __construct(
+      PlainColumn|array $structure,
+      string $table,
+      protected readonly Table $refTable)
    {
       parent::__construct( $structure, $table, false );
-      $this->refTable = $ref;
    }
 
    /**
-    * {@inheritDoc}
-    * @see \dbfe\ReferenceColumnIf::getTable()
     */
-   public function getTable()
+   public function getTable(): Table
    {
       return $this->refTable;
    }
 
    /**
-    * @return array
     */
-   public function getReferenceData( array $filter = [], bool $addNA = true )
+   public function getReferenceData( array $filter = [], bool $addNA = true ): array
    {
-      $query = $this->query;
-      if( !isset($query) )
+      if( !isset($this->query) )
       {
          // get the content of the other table, select id and name col
-         $query = new SelectQuery();
-         $query->columns    = [ $this->refTable->getIdColumn()->getName(), $this->refTable->getNameColumn()->getName() ];
-         $query->filter     = $filter;
+         $idCol = $this->refTable->getIdColumn() ?? throw new DatabaseStructureIssue("{$this->refTable->getName()} does not have an ID column.");
+         $nameCol = $this->refTable->getNameColumn() ?? throw new DatabaseStructureIssue("{$this->refTable->getName()} does not have a Name column.");
+         $this->query = new SelectQuery();
+         $this->query->columns    = [ $idCol->getName(), $nameCol->getName() ];
+         $this->query->filter     = $filter;
       }
 
-      if( $query instanceof SelectQuery )
+      if( $this->query instanceof SelectQuery )
       {
-         $refData = $this->refTable->query( $query );
+         $refData = $this->refTable->query( $this->query );
 
          $refValues = [];
          if( $addNA )
@@ -68,10 +67,10 @@ class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
          }
          return $refValues;
       }
-      else if( is_array($query) )
+      else if( is_array($this->query) )
       {
          // data is given directly already
-         return $query;
+         return $this->query;
       }
       else
       {
@@ -84,7 +83,7 @@ class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
     */
    private function getDisabledKeys()
    {
-      $query = $this->disabled;
+      $query = $this->disabledKeys;
       if( $query instanceof SelectQuery )
       {
          return $this->refTable->query( $query )->fetchAll(\PDO::FETCH_COLUMN);
@@ -96,7 +95,7 @@ class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
       }
       else
       {
-         return [];
+         throw new \LogicException('invalid internal type');
       }
    }
 
@@ -105,14 +104,12 @@ class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
     * A "Reference Column" is implemented by providing a select field which
     * allows to select an entry of the reference column.
     * The selectable values are taken from the "name column" of the other table.
-    *
-    * @return Form\Printer\Configuration
     */
-   public function getFormDefinition(LabelHandlerIf $lblHdl, array $data = [], bool $as_array = false )
+   public function getFormDefinition(LabelHandlerIf $lblHdl, array $data = [], bool $as_array = false ): ConfigurationIf|ConfigurationListIf
    {
       return new Configuration(
          [ 'name'  => $this->getAfixedName($as_array)
-         , 'label' => $lblHdl->get( $this->getName(), $this->m_tablename )
+         , 'label' => $lblHdl->get( $this->getName(), $this->tablename )
          , 'required' => ($this->isRequired() && !$as_array)
          , 'fixed'    => $this->isFixed()
          , 'type'  => 'select', 'selection' => $this->getReferenceData(), 'disabled_keys' => $this->getDisabledKeys() ] );
@@ -124,9 +121,9 @@ class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
     * @param SelectQuery|array $query
     * @param SelectQuery|array $disable_keys - any keys that shall no longer be selectable (unless they are already used for a specific field)
     */
-   public function setReferenceQuery( $query, $disable_keys = null )
+   public function setReferenceQuery( SelectQuery|array $query, SelectQuery|array|null $disable_keys = null ): void
    {
-      $this->query    = $query;
-      $this->disabled = $disable_keys;
+      $this->query = $query;
+      if( isset($disable_keys) ) $this->disabledKeys = $disable_keys;
    }
 }

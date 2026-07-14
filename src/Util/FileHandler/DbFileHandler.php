@@ -14,42 +14,65 @@ use getoma\dbfe\Util\Exception\DatabaseUpdateError;
  */
 class DbFileHandler extends BaseFileHandler
 {
-   /** @var \PDO */
-   protected $dbh  = null;
-   /** @var \PDOStatement */
-   protected $stmt = null;
-   /** @var \PDOStatement */
-   protected $del_stmt = null;
-   /** @var \PDOStatement */
-   protected $info_stmt = null;
-   /** @var string */
-   protected $link_template = '';
-   /** @var array */
-   protected $info = [];
+   /** buffer retrieved file info */
+   protected array $info = [];
 
-   function __construct( \PDO $dbh, string $template = '', string $table_name = 'Uploads', string $accept = '*/*' )
+   /**
+    * lazy-prepare any statements
+    */
+
+   private \PDOStatement $insert_stmt {
+      get {
+         if( !isset($this->insert_stmt) )
+         {
+            $query = new InsertQuery();
+            $query->table_spec = $this->table_name;
+            $query->columns = [ 'Uploads_ID' => '?', 'Name' => '?', 'Type' => '?', 'Size' => '?', 'Content' => '?' ];
+            $query->on_duplicate = true;
+            $this->insert_stmt = $this->dbh->prepare($query->asString());
+         }
+         return $this->insert_stmt;
+      }
+   }
+
+   private \PDOStatement $info_stmt {
+      get {
+         if( !isset($this->info_stmt) )
+         {
+            $query = new SelectQuery();
+            $query->table_spec = $this->table_name;
+            $query->filter     = [ 'Uploads_ID' => '?' ];
+            $query->columns    = ['Name', 'Type', 'Size'];
+            $this->info_stmt  = $this->dbh->prepare($query->asString());
+         }
+         return $this->info_stmt;
+      }
+   }
+
+   private \PDOStatement $del_stmt {
+      get {
+         if( !isset($this->del_stmt) )
+         {
+            $del = new DeleteQuery();
+            $del->table_spec = $this->table_name;
+            $del->filter     = [ 'Uploads_ID' => '?' ];
+            $this->del_stmt  = $this->dbh->prepare($del->asString());
+         }
+         return $this->del_stmt;
+      }
+   }
+
+   /**
+    * constructor
+    */
+   function __construct(
+      protected readonly \PDO $dbh,
+      protected readonly string $template = '',
+      protected readonly string $table_name = 'Uploads',
+      string $accept = '*/*',
+   )
    {
       parent::__construct($accept);
-
-      $this->dbh  = $dbh;
-      $this->link_template = $template;
-
-      $query = new InsertQuery();
-      $query->table_spec = $table_name;
-      $query->columns = [ 'Uploads_ID' => '?', 'Name' => '?', 'Type' => '?', 'Size' => '?', 'Content' => '?' ];
-      $query->on_duplicate = true;
-      $this->stmt = $dbh->prepare($query->asString());
-
-      $del = new DeleteQuery();
-      $del->table_spec = $table_name;
-      $del->filter     = [ 'Uploads_ID' => '?' ];
-      $this->del_stmt  = $dbh->prepare($del->asString());
-
-      $info = new SelectQuery();
-      $info->table_spec = $table_name;
-      $info->filter     = [ 'Uploads_ID' => '?' ];
-      $info->columns    = ['Name', 'Type', 'Size'];
-      $this->info_stmt  = $dbh->prepare($info->asString());
 
       $this->dbh->exec(<<<'MYSQL'
             CREATE TABLE if not exists Uploads (
@@ -64,10 +87,8 @@ class DbFileHandler extends BaseFileHandler
    }
 
    /**
-    * {@inheritDoc}
-    * @see \dbfe\BaseFileHandler::store_file()
     */
-   protected function storeFile( $row_id, array &$file_data, $field_value, string $file_ext )
+   protected function storeFile(?string $row_id, array $file_data, ?string $field_value, string $file_ext): string
    {
       /* read in the file */
       $fname   = $file_data['tmp_name'];
@@ -75,28 +96,24 @@ class DbFileHandler extends BaseFileHandler
       $content = fread($fh, filesize($fname));
       fclose($fh);
 
-      if( !$this->stmt->execute( [ $field_value, $file_data['name'], $file_data['type'], $file_data['size'], $content ] ) )
+      if( !$this->insert_stmt->execute( [ $field_value, $file_data['name'], $file_data['type'], $file_data['size'], $content ] ) )
       {
-         throw new DatabaseUpdateError("cannot upload file - " . $this->stmt->errorInfo()[2] );
+         throw new DatabaseUpdateError("cannot upload file - " . $this->insert_stmt->errorInfo()[2] );
       }
 
       return $this->dbh->lastInsertId();
    }
 
    /**
-    * {@inheritDoc}
-    * @see FileHandlerIf::getFileUrl()
     */
-   public function getFileUrl($file_id)
+   public function getFileUrl(string $file_id): ?string
    {
-      return sprintf( $this->link_template, $file_id );
+      return sprintf( $this->template, $file_id );
    }
 
    /**
-    * {@inheritDoc}
-    * @see FileHandlerIf::getFileName()
     */
-   public function getFileName( $file_id )
+   public function getFileName(string $file_id): ?string
    {
       if( !isset($file_id) ) return null;
 
@@ -115,7 +132,9 @@ class DbFileHandler extends BaseFileHandler
       return $this->info[$file_id]['Name'];
    }
 
-   public function delete(string $file_id)
+   /**
+    */
+   public function delete(string $file_id): void
    {
       if( !$this->del_stmt->execute( [$file_id] ) )
       {

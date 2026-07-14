@@ -2,6 +2,7 @@
 
 namespace getoma\dbfe\Table\Column;
 
+use getoma\dbfe\Table\Table;
 use getoma\dbfe\Util\QueryBuilder\SelectQuery;
 
 interface ReferenceColumnIf extends ColumnIf
@@ -10,17 +11,15 @@ interface ReferenceColumnIf extends ColumnIf
     *  to set the reference content
     * @param SelectQuery $query
     */
-   public function setReferenceQuery( SelectQuery $query );
+   public function setReferenceQuery( SelectQuery $query ): void;
 
    /**
     * get the content of the reference selection
-    * @return array
     */
-   public function getReferenceData();
+   public function getReferenceData(): array;
 
    /**
     * get the table name of this reference
-    * @return Table
     */
-   public function getTable();
+   public function getTable(): Table;
 }

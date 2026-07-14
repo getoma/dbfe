@@ -6,20 +6,18 @@ interface DbfeIf
 {
    /**
     * shall return title/h1 of page
-    * @return string
     */
-   public function getTitle();
+   public function getTitle(): string;
 
    /**
     * return (internal) name of page
     */
-   public function getName();
+   public function getName(): string;
 
    /**
     * shall return a global decline message, or null if no message exists
-    * @return string
     */
-   public function getErrorMessage();
+   public function getErrorMessage(): ?string;
 
    /**
     * process any input from $_REQUEST
@@ -42,5 +40,5 @@ interface DbfeIf
     /**
      * check if a certain action is allowed
      */
-    public function isAllowed($action);
+    public function isAllowed(string $action);
 }

@@ -2,6 +2,7 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
+use getoma\dbfe\Form\Validator\Constraint\ConstraintIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
 
 class Binary extends Type
@@ -11,8 +12,8 @@ class Binary extends Type
       return [];
    }
 
-   public function getConstraint()
+   public function getConstraint(): ?ConstraintIf
    {
-      return [];
+      return null;
    }
 }

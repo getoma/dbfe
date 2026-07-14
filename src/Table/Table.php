@@ -2,10 +2,12 @@
 
 namespace getoma\dbfe\Table;
 
+use getoma\dbfe\Form\Printer\Configuration\ConfigurationIf;
 use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
 use getoma\dbfe\Table\Column\DispType;
 use getoma\dbfe\Table\Column\FileHandlerColumn;
 use getoma\dbfe\Table\Column\PlainColumn;
+use getoma\dbfe\Table\Column\ColumnIf;
 use getoma\dbfe\Table\Column\ReferenceColumn;
 use getoma\dbfe\Table\Column\ReferenceColumnIf;
 use getoma\dbfe\Table\Column\SelectionColumn;
@@ -48,10 +50,10 @@ class Table implements TableIf
    protected array $filter = [];
 
    /** @var bool */
-   protected $fieldsets_for_references = false;
+   protected bool $fieldsets_for_references = false;
 
    /** @var ?int */
-   protected $last_insert_id = null;
+   protected ?int $last_insert_id = null;
 
    /**
     * @param Factory $factory
@@ -90,7 +92,7 @@ class Table implements TableIf
     * @param Factory $factory
     * @param mixed $options any of BIDIRECTIONAL_REFERENCES | NO_HEURISTIC_TYPES | NO_REFERENCES
     */
-   public function linkReferences( Factory $factory, $options = 0, array $visited = [] )
+   public function linkReferences( Factory $factory, $options = 0, array $visited = [] ): void
    {
       /* get all references to other tables */
       $query = "select referenced_table_name, column_name, referenced_column_name
@@ -123,7 +125,7 @@ class Table implements TableIf
     * {@inheritDoc}
     * @see \dbfe\TableIf::set_use_fieldset_for_references()
     */
-   public function useFieldsetsForReferences( bool $status = null )
+   public function useFieldsetsForReferences( ?bool $status = null ): bool
    {
       if(isset($status)) $this->fieldsets_for_references = $status;
       return $this->fieldsets_for_references;
@@ -134,7 +136,7 @@ class Table implements TableIf
     * @param string $column
     * @param FileHandlerIf $fh
     */
-   public function setFilehandler( string $column, FileHandlerIf $fh, int $display_type = DispType::link, bool $support_delete = false )
+   public function setFilehandler( string $column, FileHandlerIf $fh, DispType $display_type = DispType::link, bool $support_delete = false ): void
    {
       if( isset( $this->m_columns[$column] ) )
       {
@@ -151,10 +153,8 @@ class Table implements TableIf
    /**
     * set a application-defined set of allowed input values
     * for a column
-    * @param string $column
-    * @param (array|SelectQuery) $selection
     */
-   public function setValueSelection( string $column, $selection )
+   public function setValueSelection( string $column, array|SelectQuery $selection ): void
    {
       if( isset( $this->m_columns[$column] ) )
       {
@@ -184,7 +184,7 @@ class Table implements TableIf
     * get name of the table
     * @return string
     */
-   public function getName()
+   public function getName(): string
    {
       return $this->m_name;
    }
@@ -192,10 +192,8 @@ class Table implements TableIf
    /**
     * get auto_increment column (if any).
     * returns null if none
-    *
-    * @return PlainColumn
     */
-   public function getIdColumn()
+   public function getIdColumn(): ?ColumnIf
    {
       foreach( $this->getColumns() as $col )
       {
@@ -206,19 +204,19 @@ class Table implements TableIf
 
    /**
     * return an array of the primary key column names
-    * @return \dbfe\PlainColumn[]
+    * @return ColumnIf[]
     */
-   public function getPrimaryKey()
+   public function getPrimaryKey(): array
    {
       return $this->m_primKeys;
    }
 
    /**
-    * return the name of the primary key column if there is a single one
+    * return the primary key column if there is a single one
     * throws exception, else
     * @return string
     */
-   protected function getPrimaryKeyWithCheck()
+   protected function getPrimaryKeyWithCheck(): string
    {
       $keys = array_keys($this->m_primKeys);
       if( count($keys) !== 1 ) throw new \LogicException('single primary key column expected for this call!');
@@ -231,10 +229,9 @@ class Table implements TableIf
     * Basically this would be the "human readable" id of each row (in lieu of
     * the primary key id).
     * if no unique column found, use the primary key if only one
-    * if also no single primary key, throw
-    * @return PlainColumn
+    * if also no primary key, return null
     */
-   public function getNameColumn()
+   public function getNameColumn(): ?ColumnIf
    {
       if( !empty($this->m_unique) )
       {
@@ -246,18 +243,16 @@ class Table implements TableIf
       }
       else
       {
-         throw new DatabaseError("no 'name' column for table ".$this->getName());
+         return null;
       }
    }
 
    /**
     * get column of specific name
-    *
-    * @return PlainColumn
     */
-   public function getColumn(string $name)
+   public function getColumn(string $name): ColumnIf
    {
-      return $this->m_columns[$name] ?? null;
+      return $this->m_columns[$name] ?? throw new \OutOfRangeException("column does not exist: {$this->getName()}.$name");
    }
 
    /**
@@ -265,16 +260,15 @@ class Table implements TableIf
     *
     * @return ColumnIf[]
     */
-   public function getColumns()
+   public function getColumns(): array
    {
       return $this->m_columns;
    }
 
    /**
     * get number of columns
-    * @return int
     */
-   public function getColumnCount()
+   public function getColumnCount(): int
    {
       return count($this->m_columns);
    }
@@ -282,7 +276,7 @@ class Table implements TableIf
    /**
     * @return TableReference[]
     */
-   public function getExternalReferences()
+   public function getExternalReferences(): array
    {
       return $this->m_extRef;
    }
@@ -290,7 +284,7 @@ class Table implements TableIf
    /**
     * @return bool
     */
-   public function hasExternalReferences()
+   public function hasExternalReferences(): bool
    {
       return !empty($this->m_extRef);
    }
@@ -325,13 +319,13 @@ class Table implements TableIf
    /**
     * configure the output ordering of rows for this table
     */
-   public function setOrdering( $order )
+   public function setOrdering( string|array $order ): void
    {
       if( is_string($order) ) $order = [ $order ];
       $this->order = $order;
    }
 
-   public function hasUploads()
+   public function hasUploads(): bool
    {
       if( !empty($this->m_filehdl) ) return true;
 
@@ -345,10 +339,8 @@ class Table implements TableIf
 
    /**
     * retrieve data from this table
-    * @param SelectQuery
-    * @return \PDOStatement
     */
-   public function query( SelectQuery $query )
+   public function query( SelectQuery $query ): \PDOStatement
    {
       /* complete the query specification */
       if( !isset($query->table_spec) )
@@ -362,9 +354,8 @@ class Table implements TableIf
 
    /**
     * check if a specific id existst in the table data
-    * @param int $id
     */
-   public function hasId( int $id )
+   public function hasId( int $id ): bool
    {
       $result = null;
 
@@ -390,14 +381,13 @@ class Table implements TableIf
 
    /**
     * get the primary key id of the last added entry
-    * @return string
     */
-   public function lastInsertId()
+   public function lastInsertId(): ?int
    {
       return $this->last_insert_id;
    }
 
-   public function insertData( array $data, bool $updateOnDuplicate = false )
+   public function insertData( array $data, bool $updateOnDuplicate = false ): void
    {
       /* get all non-skipped rows */
       $col_list = array_filter( $this->getColumns(), function($c) { return !$c->doSkip(); } );
@@ -507,12 +497,8 @@ class Table implements TableIf
 
    /**
     * update an existing row in the table
-    *
-    * @param array $data
-    * @param mixed $identifier
-    * @return boolean
     */
-   public function updateRow( array $data, $identifier )
+   public function updateRow( array $data, mixed $identifier ): void
    {
       $idcols = [];
       /* pre-process identifier */
@@ -569,11 +555,9 @@ class Table implements TableIf
 
    /**
     * drop a row identified by $identifier
-    *
-    * @param mixed $identifier
     * @throws \LogicException
     */
-   public function dropRow($identifier)
+   public function dropRow(mixed $identifier): void
    {
       /**
        * preprocess the $identifier
@@ -600,9 +584,8 @@ class Table implements TableIf
     * drop multiple rows from a table
     * @param array[string] $id_columns name of columns used to identify the rows
     * @param array[string] $id_values  array of arrays of value of the id columns
-    * @return boolean
     */
-   public function dropRowset( array $id_columns, array $id_values )
+   public function dropRowset( array $id_columns, array $id_values ): void
    {
       /**
        * generate the delete query and its filter
@@ -668,10 +651,8 @@ class Table implements TableIf
 
    /**
     *
-    * @param array $data       the input data
-    * @param mixed $identifier of the current column in the main table
     */
-   protected function updateReferencedTables( array $data )
+   protected function updateReferencedTables( array $data ): void
    {
       foreach( $this->getExternalReferences() as $ref )
       {
@@ -704,7 +685,7 @@ class Table implements TableIf
     * delete rows from table using the "delete column" as generated by Form\Printer
     * by Table::get_form_definition
     */
-   public function deleteRowsFromFv(array $data)
+   public function deleteRowsFromFv(array $data): void
    {
       $del_data       = [];
       $del_id_columns = array_keys($this->getPrimaryKey());
@@ -743,13 +724,13 @@ class Table implements TableIf
     * in $data
     * @param array $data in/out
     */
-   protected function handleFileUploads(array &$data)
+   protected function handleFileUploads(array &$data): void
    {
       if( empty($this->m_filehdl) ) return;
 
       /* determine a row identifier if possible */
-      $id_col = $this->getIdColumn();
-      $rowid = isset($id_col)? $data[$id_col->getAfixedName()] : null;
+      $name_col = $this->getNameColumn();
+      $rowid = isset($name_col)? $data[$name_col->getAfixedName()] : null;
 
       foreach ($this->m_filehdl as $fcol)
       {
@@ -763,10 +744,8 @@ class Table implements TableIf
    /**
     * get contents of the table and all referenced tables
     * in a format compatible to \Form\Printer
-    * @param mixed $selector
-    * @param bool  $order
     */
-   public function getFormData( $selector = [] )
+   public function getFormData( int|string|array $selector = [] ): array
    {
       $result = [];
 
@@ -880,7 +859,7 @@ class Table implements TableIf
       {
          $grouping = array_merge( $grouping, array_fill_keys( $fields, $group ) );
       }
-      /** @var $groups array[\dbfe\Form\Printer\ConfigurationIf]  store links to any created group */
+      /** @var ConfigurationIf[]  store links to any created group */
       $groups = [];
 
       /** generate the form configuration **/
@@ -1036,13 +1015,8 @@ class Table implements TableIf
     * if $skip_primary set, the primary key is not included (useful if new table
     * entries are to be added)
     * allow to provide customized constraints via dedicated parameter
-    *
-    * @param $constraints  array
-    * @param $skip_primary bool
-    *
-    * @return Form\Validator\Profile
     */
-   public function getFormValidation( bool $optional_id = false, bool $as_array = false, $skip = [] )
+   public function getFormValidation( bool $optional_id = false, bool $as_array = false, $skip = [] ): \getoma\dbfe\Form\Validator\Profile
    {
       $result = new \getoma\dbfe\Form\Validator\Profile();
 
@@ -1090,7 +1064,7 @@ class Table implements TableIf
       return $result;
    }
 
-   private static function getDeleteColName( $tabname, $as_array = false )
+   private static function getDeleteColName( string $tabname, $as_array = false ): string
    {
       return 'del' . $tabname . ($as_array? '[]' : '');
    }

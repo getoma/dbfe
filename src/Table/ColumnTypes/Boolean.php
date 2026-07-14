@@ -2,6 +2,7 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
+use getoma\dbfe\Form\Validator\Constraint\ConstraintIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
 use getoma\dbfe\Form\Validator\Constraint\FastConstructors as fvc;
 
@@ -17,7 +18,7 @@ class Boolean extends Type
       return [ 'type' => 'checkbox', 'value' => '1' ];
    }
 
-   public function getConstraint()
+   public function getConstraint(): ConstraintIf
    {
       return fvc::Integer( 0 );
    }
@@ -27,7 +28,7 @@ class Boolean extends Type
     * {@inheritdoc}
     * @see Type::is_null_ok()
     */
-   public function isNullOk()
+   public function isNullOk(): bool
    {
       return false;
    }

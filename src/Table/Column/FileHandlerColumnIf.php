@@ -9,11 +9,11 @@ interface FileHandlerColumnIf extends ColumnIf
     * @param array $data
     * @param string $rowid
     */
-   public function handleUpload( array &$data, $rowid);
+   public function handleUpload( array &$data, string $rowid): void;
 
    /**
     * drop the given files
     * @param array $files
     */
-   public function dropFiles( array $files );
+   public function dropFiles( array $files ): void;
 }

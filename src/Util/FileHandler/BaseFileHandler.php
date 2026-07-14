@@ -7,32 +7,27 @@ use getoma\dbfe\Util\Exception\UploadException;
 abstract class BaseFileHandler implements FileHandlerIf
 {
    /** @var string */
-   protected $accept;
-   /** @var string */
-   protected $accept_re;
+   protected string $accept_re;
 
    /**
     * @param string $accept - file type accept pattern
     */
-   function __construct( string $accept = '*/*' )
+   function __construct( protected string $accept = '*/*' )
    {
-      $this->accept   = $accept;
       $accept = preg_replace( '#\*#', '.+', $accept); // turn wildcard pattern into regexp
       $accept = preg_replace( '#([^/]+)$#', '($1)', $accept ); // catch last part as file extension
-      if( !isset($accept) ) die('invalid accept pattern!');
+      if( !isset($accept) ) throw new \DomainException('invalid accept pattern!');
       $this->accept_re = '#' . $accept . '#';
    }
 
-   public function getAccept()
+   public function getAccept(): string
    {
       return $this->accept;
    }
 
    /**
-    * {@inheritDoc}
-    * @see FileHandlerIf::upload()
     */
-   public function upload( string $column, $old_value, $rowid )
+   public function upload(string $column, string|array|null $old_value, string|array|null $rowid): array|string|null
    {
       if( !isset($_FILES[$column]) )
       {
@@ -99,9 +94,10 @@ abstract class BaseFileHandler implements FileHandlerIf
 
    /**
     * @param string $row_id      a constructed identifier unique to the corresponding data set where the file upload belongs to
-    * @param string $file_data   the reference to the $_FILE entry
+    * @param array  $file_data   the reference to the $_FILE entry
     * @param string $field_value the currently stored value of the file upload field
     * @param string $file_ext    the file extension of the uploaded file
+    * @return string|int - file handle to store into db (e.g. filename, id, ...)
     */
-   abstract protected function storeFile( $row_id, array &$file_data, $field_value, string $file_ext );
+   abstract protected function storeFile(?string $row_id, array $file_data, ?string $field_value, string $file_ext): string|int;
 }

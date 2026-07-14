@@ -3,6 +3,7 @@
 namespace getoma\dbfe\Table\Column;
 
 use getoma\dbfe\Form\Printer\Configuration\ConfigurationList;
+use getoma\dbfe\Form\Printer\Configuration\Configuration;
 use getoma\dbfe\Util\FileHandler\FileHandlerIf;
 use getoma\dbfe\Util\HtmlElement\HtmlElement;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
@@ -10,24 +11,18 @@ use getoma\dbfe\Form\Validator\Constraint\FastConstructors as fvc;
 
 class FileHandlerColumn extends PlainColumn implements FileHandlerColumnIf
 {
-   /** var FileHandler */
-   protected $fh;
-   /** var bool */
-   protected $support_delete;
-   /** var int */
-   protected $display_type;
-
    /**
-    * @param array|PlainColumn $structure
-    * @param FileHandlerIf       $fh
+    * constructor
     */
-   public function __construct($structure, string $table, FileHandlerIf $fh, int $display_type = DispType::link, bool $support_delete = true)
+   public function __construct(
+      PlainColumn|array $structure,
+      string $table,
+      protected readonly FileHandlerIf $fh,
+      protected readonly DispType $display_type = DispType::link,
+      protected readonly bool $support_delete = true
+   )
    {
       parent::__construct($structure, $table, false);
-
-      $this->fh             = $fh;
-      $this->support_delete = $support_delete;
-      $this->display_type   = $display_type;
    }
 
    /**
@@ -35,7 +30,7 @@ class FileHandlerColumn extends PlainColumn implements FileHandlerColumnIf
     * @param array $data
     * @param string $rowid
     */
-   public function handleUpload( array &$data, $rowid)
+   public function handleUpload( array &$data, $rowid): void
    {
       $colname = $this->getAfixedName();
 
@@ -66,7 +61,7 @@ class FileHandlerColumn extends PlainColumn implements FileHandlerColumnIf
       }
    }
 
-   public function dropFiles( array $files )
+   public function dropFiles( array $files ): void
    {
       foreach( $files as $del )
       {
@@ -77,22 +72,22 @@ class FileHandlerColumn extends PlainColumn implements FileHandlerColumnIf
    /**
     * get a form specification that can be used as input to Form\Printer
     */
-   public function getFormDefinition(LabelHandlerIf $lblHdl, array $data = [], bool $as_array = false )
+   public function getFormDefinition(LabelHandlerIf $lblHdl, array $data = [], bool $as_array = false ): \getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf
    {
       $dname     = $this->getAfixedName();
       $form_name = $this->getAfixedName($as_array);
 
       $result = new ConfigurationList(
-         [ array_merge( [ 'type' => 'file', 'accept' => $this->fh->getAccept()
-                        , 'name' => $form_name, 'label' => $lblHdl->get( $this->getName(), $this->m_tablename ) ]
-                        , $this->m_formProp ) ] );
+         [ array_merge( [ 'type' => 'file', 'accept' => $this->fh->getAccept(), 'fixed' => $as_array
+                        , 'name' => $form_name, 'label' => $lblHdl->get( $this->getName(), $this->tablename ) ]
+                        , $this->formProp ) ] );
 
       if( isset($data[$dname]) )
       {
          $links = array_map( function($id)
          {
-            return [ 'url'  => $this->fh->getFileUrl($id),
-                     'name' => $this->fh->getFileName($id) ];
+            return [ 'url'  => $id? $this->fh->getFileUrl($id) : null,
+                     'name' => $id? $this->fh->getFileName($id) : null ];
          }, is_array($data[$dname])? $data[$dname] : [$data[$dname]] );
 
          if( $this->display_type == DispType::link )
@@ -133,7 +128,7 @@ class FileHandlerColumn extends PlainColumn implements FileHandlerColumnIf
     * {@inheritDoc}
     * @see \dbfe\PlainColumn::getValidatorConfig()
     */
-   public function getValidatorConfig(bool $as_array = false)
+   public function getValidatorConfig(bool $as_array = false): \getoma\dbfe\Form\Validator\Profile
    {
       $result = parent::getValidatorConfig( $as_array );
 
@@ -147,7 +142,7 @@ class FileHandlerColumn extends PlainColumn implements FileHandlerColumnIf
       return $result;
    }
 
-   protected function getDeleteName()
+   protected function getDeleteName(): string
    {
       return $this->getAfixedName() . '_del';
    }

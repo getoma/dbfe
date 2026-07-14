@@ -7,23 +7,12 @@ namespace getoma\dbfe\Table;
  */
 class TableReference
 {
-   /** @var Table name of the other table*/
-   public $table;
-   /** @var string name of the column that holds the reference in the other table */
-   public $column;
-   /** @var string name of the referenced column in your table */
-   public $refcolumn;
-
-   /**
-    * @param Table $table      link to the other table that holds a reference
-    * @param string $column    name of the column that holds the reference in the other table
-    * @param string $refcolumn name of the referenced column in your table
-    */
-   function __construct( TableIf $table, string $column, string $refcolumn )
+   function __construct(
+      public readonly TableIf $table,    // name of the other table
+      public readonly string  $column,   // name of the column that holds the reference in the other table
+      public readonly string  $refcolumn // name of the referenced column in your table
+   )
    {
-      $this->table     = $table;
-      $this->column    = $column;
-      $this->refcolumn = $refcolumn;
    }
 
    /**
@@ -33,9 +22,8 @@ class TableReference
     * a 1-to-1 reference.
     * Otherwise, 1-to-many is assumed
     * also the column
-    * @return boolean
     */
-   public function isOne2Many()
+   public function isOne2Many(): bool
    {
       $keys = array_keys( $this->table->getPrimaryKey() );
       return !( (count($keys) === 1) && ($keys[0] === $this->column) );
@@ -46,7 +34,7 @@ class TableReference
     * to provide a selection checkbox for whether this sub table shall be used
     * return null if it's a 1:many dependency
     */
-   public function getSelectionName()
+   public function getSelectionName(): ?string
    {
       return $this->isOne2Many()? null : 'select_' . $this->table->getName();
    }

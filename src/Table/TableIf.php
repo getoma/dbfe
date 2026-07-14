@@ -3,6 +3,7 @@
 namespace getoma\dbfe\Table;
 
 use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
+use getoma\dbfe\Table\Column\ColumnIf;
 use getoma\dbfe\Table\Column\DispType;
 use getoma\dbfe\Util\FileHandler\FileHandlerIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
@@ -17,93 +18,83 @@ interface TableIf
    /**
     * explicitly link references to tables references via foreign keys
     * @param Factory $factory factory to load tables that are referenced
-    * @param number $options (BIDIRECTIONAL_REFERENCES)
+    * @param int $options (BIDIRECTIONAL_REFERENCES)
     */
-   function linkReferences( Factory $factory, $options = 0 );
+   function linkReferences( Factory $factory, int $options = 0 ): void;
 
    /**
     * register a filehandler for a certain column
-    * @param string $column
-    * @param FileHandlerIf $fh
     */
-   function setFilehandler( string $column, FileHandlerIf $fh, int $display_type = DispType::link, bool $support_delete = false );
+   function setFilehandler( string $column, FileHandlerIf $fh, DispType $display_type = DispType::link, bool $support_delete = false ): void;
 
    /**
     * set a application-defined set of allowed input values
     * for a column
-    * @param string $column
-    * @param (array|SelectQuery) $selection
     */
-   function setValueSelection( string $column, $selection );
+   function setValueSelection( string $column, array|SelectQuery $selection ): void;
 
    /**
     * get name of the table
-    * @return string
     */
-   function getName();
+   function getName(): string;
 
    /**
     * get auto_increment column (if any).
     * returns null if none
-    *
-    * @return PlainColumn
     */
-   function getIdColumn();
+   function getIdColumn(): ?ColumnIf;
 
    /**
     * return an array of the primary key column names
-    * @return \dbfe\PlainColumn[]
+    * @return ColumnIf[]
     */
-   function getPrimaryKey();
+   function getPrimaryKey(): array;
 
     /**
-     * get name of main "name" column.
+     * get the "name" column.
      * Basically this would be the "human readable" id of each row (in lieu of
      * the primary key id).
      * if no name column available, throw
-     * @return PlainColumn
      */
-   function getNameColumn();
+   function getNameColumn(): ?ColumnIf;
 
     /**
      * get column of specific name
-     * @return PlainColumn
      */
-    function getColumn(string $name);
+    function getColumn(string $name): ColumnIf;
 
     /**
      * get all columns
-     * @return PlainColumn[]
+     * @return ColumnIf[]
      */
-    function getColumns();
+    function getColumns(): array;
 
     /**
      * get all columns excpept auto_increment columns
-     * @return PlainColumn[]
+     * @return ColumnIf[]
      */
-    function getNonIdColumns();
+    function getNonIdColumns(): array;
 
     /**
      * get all columns that are not part of primary key
-     * @return PlainColumn[]
+     * @return ColumnIf[]
      */
-    function getNonKeyColumns();
+    function getNonKeyColumns(): array;
 
     /**
      * get number of columns
-     * @return int
      */
-    function getColumnCount();
+    function getColumnCount(): int;
 
     /**
      * @return TableReference[]
      */
-    function getExternalReferences();
+    function getExternalReferences(): array;
 
     /**
      * @return bool
      */
-    function hasExternalReferences();
+    function hasExternalReferences(): bool;
 
     /**
      * register a reference to another table
@@ -113,83 +104,70 @@ interface TableIf
 
     /**
      * configure the output ordering of rows for this table
+     * @param string|array $order - list of order by clauses
      */
-    function setOrdering( $order );
+    function setOrdering( string|array $order ): void;
 
     /**
      * @return bool
      */
-    function hasUploads();
+    function hasUploads(): bool;
 
     /**
      * retrieve data from this table
-     * @param SelectQuery
-     * @return \PDOStatement
      */
-    function query( SelectQuery $query );
+    function query( SelectQuery $query ): \PDOStatement;
 
     /**
      * check if a specific id existst in the table data
      * @param int $id
      */
-    function hasId( int $id );
+    function hasId( int $id ): bool;
 
     /**
      * get the primary key id of the last added entry
-     * @return string
      */
-    function lastInsertId();
+    function lastInsertId(): ?int;
 
     /**
      * insert data into the table
      * @param array $data
      * @param bool  $updateOnDuplicate
      */
-    function insertData( array $data, bool $updateOnDuplicate = false );
+    function insertData( array $data, bool $updateOnDuplicate = false ): void;
 
     /**
      * update an existing row in the table
-     * @param array $data
-     * @param mixed $identifier
-     * @return boolean
      */
-    function updateRow( array $data, $identifier );
+    function updateRow( array $data, mixed $identifier ): void;
 
     /**
      * drop a row identified by $identifier
-     * @param mixed $identifier
      * @throws \LogicException
-     * @return \mysqli_result|boolean
      */
-    function dropRow($identifier);
+    function dropRow(mixed $identifier): void;
 
     /**
      * drop multiple rows from a table
      * @param array[string] $id_columns name of columns used to identify the rows
      * @param array[string] $id_values  array of arrays of value of the id columns
-     * @return boolean
      */
-    function dropRowset( array $id_columns, array $id_values );
+    function dropRowset( array $id_columns, array $id_values ): void;
 
     /**
      * delete rows from table using the "delete column" as generated
      * by Table::get_form_definition
      */
-    function deleteRowsFromFv(array $data);
+    function deleteRowsFromFv(array $data): void;
 
     /**
      * get contents of the table and all referenced tables
-     * in a format compatible to \Form\Printer
-     * @param mixed $selector
-     * @param bool  $order
+     * in a format compatible to Form Printer
      */
-    function getFormData( $selector = [] );
+    function getFormData( int|string|array $selector = [] ): array;
 
     /**
      * get a form specification that can be used as input to Form\Printer
-     * @param $lblHdl LabelHandlerIf            translator interface to derive field names etc
-     * @param $data array                       data that shall be put into the form [ <column> => [...data] ]
-     * @param $options array                    optional configurations, see below
      *
      * options:
      *  as_array      => encapsulate whole table form into ArrayGroup
@@ -204,16 +182,13 @@ interface TableIf
     /**
      * get \Form\Validator configuration for this table
      * if $skip_primary set, the primary key is not included (useful if new table entries are to be added)
-     * @param $constraints  array
-     * @param $skip_primary bool
-     * @return Form\Validator\Profile
      */
-    function getFormValidation( bool $skip_auto_increment = false, bool $as_array = false, $skip = [] );
+    function getFormValidation( bool $skip_auto_increment = false, bool $as_array = false, $skip = [] ): \getoma\dbfe\Form\Validator\Profile;
 
     /**
      * whether referenced tables shall be encapsulated into <fieldset> at form output
-     * @param bool $status
-     * @return bool
+     * @param bool $status - if provided set it to the given value
+     * @return bool - current status
      */
-    function useFieldsetsForReferences( bool $status = null );
+    function useFieldsetsForReferences( ?bool $status = null ): bool;
 }

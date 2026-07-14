@@ -15,30 +15,30 @@ abstract class PlainPage implements DbfeIf
     * MEMBER VARIABLES
     ******************************************************/
    /** @var \PDO */
-   private $m_dbh;
+   private readonly \PDO $m_dbh;
 
    /** @var mixed */
-   private $m_redirect_to = null;
+   private string|int|null $m_redirect_to = null;
 
-   /** @var LabelHandlerIf */
-   private $m_lblhdl;
+   /** LabelHandlerIf */
+   private readonly LabelHandlerIf $m_lblhdl;
 
-   /** @var string */
-   private $m_name;
+   /** (internal) name of this page */
+   private readonly string $m_name;
 
-   /** @var string */
-   private $m_errmsg = null;
+   /** current error message */
+   private ?string $m_errmsg = null;
 
-   /** @var string */
-   private $m_selflink;
+   /** url to this page */
+   private readonly string $m_selflink;
 
    /** @var array */
-   static private $hooks;
+   static private array $hooks;
 
    /******************************************************
     * INTERNAL INTERFACE FOR DERIVED CLASSES
     ******************************************************/
-   protected function selflink()
+   protected function selflink(): string
    {
       return $this->m_selflink;
    }
@@ -46,7 +46,7 @@ abstract class PlainPage implements DbfeIf
    /**
     * @return \PDO
     */
-   protected function getDbh()
+   protected function getDbh(): \PDO
    {
       return $this->m_dbh;
    }
@@ -61,7 +61,7 @@ abstract class PlainPage implements DbfeIf
    /**
     * @param string|int $target
     */
-   protected function redirectTo( $target )
+   protected function redirectTo( string|int $target ): void
    {
       $this->m_redirect_to = $target;
    }
@@ -81,7 +81,7 @@ abstract class PlainPage implements DbfeIf
       $this->m_selflink = $options['selflink'] ?? $_SERVER['SCRIPT_NAME'];
    }
 
-   protected function callHook($hook, ...$params)
+   protected function callHook(string $hook, mixed ...$params): mixed
    {
       if( isset(self::$hooks[$hook]) )
       {
@@ -103,7 +103,7 @@ abstract class PlainPage implements DbfeIf
     * {@inheritDoc}
     * @see dbfeIf::getTitle()
     */
-   public function getTitle()
+   public function getTitle(): string
    {
       return $this->getLabelHdl()->get( $this->m_name );
    }
@@ -112,7 +112,7 @@ abstract class PlainPage implements DbfeIf
     * {@inheritDoc}
     * @see dbfeIf::getName()
     */
-   public function getName()
+   public function getName(): string
    {
       return $this->m_name;
    }
@@ -121,7 +121,7 @@ abstract class PlainPage implements DbfeIf
     * {@inheritDoc}
     * @see dbfeIf::getErrorMessage()
     */
-   public function getErrorMessage()
+   public function getErrorMessage(): ?string
    {
       return $this->m_errmsg;
    }
@@ -178,7 +178,7 @@ abstract class PlainPage implements DbfeIf
     * {@inheritDoc}
     * @see dbfeIf::isAllowed()
     */
-   public function isAllowed($action, $subject = null )
+   public function isAllowed(string $action, ?string $subject = null): bool
    {
       return $this->callHook('allowed', $action, $subject ) ?? true;
    }
@@ -186,7 +186,7 @@ abstract class PlainPage implements DbfeIf
    /**
     * public methods
     */
-   static public function set_hook(string $hook, callable $callback)
+   static public function set_hook(string $hook, callable $callback): void
    {
       self::$hooks[$hook] = array_merge( [ $callback ], self::$hooks[$hook]??[] );
    }

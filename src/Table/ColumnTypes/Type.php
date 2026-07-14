@@ -11,36 +11,33 @@ abstract class Type implements TypeIf
 {
    /**
     * the original type specification
-    * @var string
     */
-   protected $m_type;
+   protected string $type;
 
-   /** whether the field can be null
-    * @var bool
+   /**
+    * whether the field can be null
     */
-   protected $m_null;
+   protected bool $null;
 
-   public function __construct(string $type, $null)
+   public function __construct(string $type, mixed $null)
    {
-      $this->m_type = $type;
-      if( $null === "NO" ) $this->m_null = false;
-      else $this->m_null = (bool)$null;
+      $this->type = $type;
+      if( $null === "NO" ) $this->null = false;
+      else $this->null = (bool)$null;
    }
 
    /**
-    *
-    * @return boolean
+    * whether NULL is a valid value
     */
-   public function isNullOk()
+   public function isNullOk(): bool
    {
-      return $this->m_null;
+      return $this->null;
    }
 
    /**
     * allow overriding of database default in input processing
-    * @return mixed
     */
-   public function getDefault($db_default = '')
+   public function getDefault($db_default = ''): mixed
    {
       return $db_default;
    }
@@ -127,8 +124,6 @@ abstract class Type implements TypeIf
          }
       }
 
-      die( "unsupported type $type" );
-
-      return null;
+      throw new \DomainException( "unsupported type $type" );
    }
 }

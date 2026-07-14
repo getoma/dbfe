@@ -3,6 +3,8 @@
 namespace getoma\dbfe\Table\Column;
 
 use getoma\dbfe\Form\Printer\Configuration\Configuration as fpc;
+use getoma\dbfe\Form\Printer\Configuration\ConfigurationIf;
+use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
 use getoma\dbfe\Form\Validator\Constraint\Constraint;
 use getoma\dbfe\Table\ColumnTypes\Type;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
@@ -12,99 +14,74 @@ use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
  */
 class PlainColumn implements ColumnIf
 {
-   /** @var string */
-   protected $m_name;
+   protected string  $name;
+   protected Type    $type;
+   protected string  $key;
+   protected string  $extra;
+   protected mixed   $default;
+   protected array   $formProp = [];
+   protected bool    $skip = false;
+   protected string  $column_spec = "%s";
+   protected ?Constraint $custom_constraint = null;
+   protected bool    $required = false;
+   protected bool    $fixed = false;
 
-   /** @var Type */
-   protected $m_type;
-
-   /** @var string */
-   protected $m_key;
-
-   /** @var string */
-   protected $m_extra;
-
-   /** @var mixed */
-   protected $m_default;
-
-   /*  */
-   protected array $m_formProp = [];
-
-   /** @var string */
-   protected $m_tablename = null;
-
-   /** @var bool */
-   protected $skip = false;
-
-   /** @var string */
-   protected $m_column_spec = "%s";
-
-   /** @var  */
-   protected $m_custom_constraint = null;
-
-   /** @var bool */
-   protected $m_required = false;
-
-   /** @var bool */
-   protected $m_fixed = false;
-
-   public function __construct( $structure, string $table, bool $heuristic_types = false)
+   public function __construct(
+      PlainColumn|array $structure,
+      protected readonly string $tablename,
+      bool $heuristic_types = false
+   )
    {
       if( $structure instanceof PlainColumn )
       {
          /* copy constructor */
-         $this->m_name    = $structure->m_name;
-         $this->m_type    = clone $structure->m_type;
-         $this->m_extra   = $structure->m_extra;
-         $this->m_default = $structure->m_default;
-         $this->m_key     = $structure->m_key;
+         $this->name    = $structure->name;
+         $this->type    = clone $structure->type;
+         $this->extra   = $structure->extra;
+         $this->default = $structure->default;
+         $this->key     = $structure->key;
       }
       else if( is_array($structure) )
       {
          /* construction from structure definition */
-         $this->m_name    = $structure["Field"];
-         $this->m_type    = Type::create( $structure["Type"], $structure["Null"], $structure["Field"], $heuristic_types );
-         $this->m_extra   = $structure["Extra"];
-         $this->m_default = $structure["Default"] == "NULL" ? null : $structure["Default"];
-         $this->m_key     = $structure["Key"];
+         $this->name    = $structure["Field"];
+         $this->type    = Type::create( $structure["Type"], $structure["Null"], $structure["Field"], $heuristic_types );
+         $this->extra   = $structure["Extra"];
+         $this->default = $structure["Default"] == "NULL" ? null : $structure["Default"];
+         $this->key     = $structure["Key"];
       }
       else
       {
          throw new \LogicException('unsupported type for structure in column construction');
       }
-      $this->m_tablename = $table;
    }
 
-   public function addFormProperties(array $prop)
+   public function addFormProperties(array $prop): void
    {
-      $this->m_formProp += $prop;
+      $this->formProp += $prop;
    }
 
    /**
     * add a custom constraint from the application
     */
-   public function setCustomConstraint( Constraint $constraint )
+   public function setCustomConstraint( Constraint $constraint ): void
    {
-      $this->m_custom_constraint = $constraint;
+      $this->custom_constraint = $constraint;
    }
 
    /**
     * get a form specification that can be used as input to Form\Printer
-    * @return Form\Printer\Configuration
-    *
-    * {@inheritDoc}
-    * @see \dbfe\ColumnIf::getFormDefinition()
     */
-   public function getFormDefinition(LabelHandlerIf $lblHdl, array $data = [], bool $as_array = false)
+   public function getFormDefinition(LabelHandlerIf $lblHdl, array $data = [], bool $as_array = false): ConfigurationIf|ConfigurationListIf
    {
       return new fpc(
          array_merge( [ 'name'     => $this->getAfixedName($as_array),
-                        'label'    => $lblHdl->get( $this->getName(), $this->m_tablename ),
+                        'label'    => $lblHdl->get( $this->getName(), $this->tablename ),
                         'required' => $this->isRequired() && !$as_array,
                         'fixed'    => $this->isFixed()
                       ],
-                        $this->m_formProp,
-                        $this->m_type->getFormAttributes( $lblHdl, $this->m_tablename . '.' . $this->getName() ),
+                        $this->formProp,
+                        $this->type->getFormAttributes( $lblHdl, $this->tablename . '.' . $this->getName() ),
             ) );
    }
 
@@ -113,29 +90,28 @@ class PlainColumn implements ColumnIf
     *
     * @return string
     */
-   public function getName()
+   public function getName(): string
    {
-      return $this->m_name;
+      return $this->name;
    }
 
    /**
     * {@inheritDoc}
     * @see \dbfe\ColumnIf::getType()
     */
-   public function getType()
+   public function getType(): string
    {
-      $class = get_class($this->m_type);
+      $class = get_class($this->type);
       return ($pos = strrpos($class, '\\'))? substr($class, $pos + 1) : $class;
    }
 
    /**
     * get or set column specifier to use in "select" query
-    * @param string $spec
     */
-   public function sqlColumnSpec($spec = null)
+   public function sqlColumnSpec(?string $spec = null): string
    {
-      if( isset($spec) ) $this->m_column_spec = $spec;
-      return sprintf($this->m_column_spec, $this->getName())." ".$this->getName();
+      if( isset($spec) ) $this->column_spec = $spec;
+      return sprintf($this->column_spec, $this->getName())." ".$this->getName();
    }
 
    /**
@@ -143,75 +119,66 @@ class PlainColumn implements ColumnIf
     *
     * @return mixed
     */
-   public function getDefault()
+   public function getDefault(): mixed
    {
-      return $this->m_type->getDefault($this->m_default);
+      return $this->type->getDefault($this->default);
    }
 
    /**
     * whether this field needs to be filled with a value when writing to the DB
     * It is required if the column is "not null" AND there is no default value
-    *
-    * @return boolean
     */
-   public function isRequired()
+   public function isRequired(): bool
    {
-      return $this->m_required || (!$this->m_type->isNullOk() && !isset( $this->m_default ));
+      return $this->required || (!$this->type->isNullOk() && !isset( $this->default ));
    }
 
    /**
-    * @return boolean
     */
-   public function isAutoIncrement()
+   public function isAutoIncrement(): bool
    {
-      return strpos( $this->m_extra, 'auto_increment' ) !== false;
+      return strpos( $this->extra, 'auto_increment' ) !== false;
    }
 
    /**
-    * @return boolean
     */
-   public function isPrimaryKey()
+   public function isPrimaryKey(): bool
    {
-      return $this->m_key === 'PRI';
+      return $this->key === 'PRI';
    }
 
    /**
-    * @return boolean
     */
-   public function isUnique()
+   public function isUnique(): bool
    {
-      return $this->m_key === 'UNI';
+      return $this->key === 'UNI';
    }
 
    /**
-    * @return boolean
     */
-   public function isFixed()
+   public function isFixed(): bool
    {
-      return $this->m_fixed || $this->isPrimaryKey();
+      return $this->fixed || $this->isPrimaryKey();
    }
 
    /**
-    * @return string
     */
-   public static function afixedName( string $column_name, string $prefix = '', bool $as_array = false )
+   public static function afixedName( string $column_name, string $prefix = '', bool $as_array = false ): string
    {
       return ($prefix? $prefix . '_' : '') . $column_name . ($as_array? '[]' : '');
    }
 
    /**
-    * @return string
     */
-   public function getAfixedName( bool $as_array = false )
+   public function getAfixedName( bool $as_array = false ): string
    {
-      return static::afixedName( $this->getName(), $this->m_tablename, $as_array );
+      return static::afixedName( $this->getName(), $this->tablename, $as_array );
    }
 
    /**
     * provide column specific form\validator configuration
-    * @return Form\Validator\Profile
     */
-   public function getValidatorConfig(bool $as_array = false)
+   public function getValidatorConfig(bool $as_array = false): \getoma\dbfe\Form\Validator\Profile
    {
       $result = new \getoma\dbfe\Form\Validator\Profile();
 
@@ -234,16 +201,16 @@ class PlainColumn implements ColumnIf
       }
 
       /* constraints */
-      if( isset($this->m_custom_constraint) )
+      if( isset($this->custom_constraint) )
       {
-         $result->constraints[$name] = $this->m_custom_constraint;
+         $result->constraints[$name] = $this->custom_constraint;
       }
       else
       {
-         $constraint = $this->m_type->getConstraint();
+         $constraint = $this->type->getConstraint();
          if( isset($constraint) )
          {
-            $result->constraints[$name] = $this->m_type->getConstraint();
+            $result->constraints[$name] = $constraint;
          }
       }
 
@@ -251,26 +218,22 @@ class PlainColumn implements ColumnIf
    }
 
    /**
-    * {@inheritDoc}
-    * @see \dbfe\ColumnIf::doSkip()
     */
-   public function doSkip(bool $status = null)
+   public function doSkip(?bool $status = null): bool
    {
       if( isset($status) ) $this->skip = $status;
       return $this->skip;
    }
 
    /**
-    * {@inheritDoc}
-    * @see \dbfe\ColumnIf::makeRequired()
     */
-   public function makeRequired()
+   public function makeRequired(): void
    {
-      $this->m_required = true;
+      $this->required = true;
    }
 
-   public function makeFixed()
+   public function makeFixed(): void
    {
-      $this->m_fixed = true;
+      $this->fixed = true;
    }
 }

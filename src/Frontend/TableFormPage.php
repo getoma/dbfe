@@ -3,27 +3,28 @@
 namespace getoma\dbfe\Frontend;
 
 use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
+use getoma\dbfe\Table\Column\ReferenceColumn;
 use getoma\dbfe\Table\Factory;
 use getoma\dbfe\Table\Table;
 use getoma\dbfe\Table\TableIf;
 use getoma\dbfe\Table\TableReference;
-use getoma\dbfe\Util\Exception\DatabaseError;
+use getoma\dbfe\Util\Exception\DatabaseStructureIssue;
 use getoma\dbfe\Util\HtmlElement\HtmlElement;
 use getoma\dbfe\Util\QueryBuilder\SelectQuery;
 
 abstract class TableFormPage extends FormPage
 {
-   /** @var Table[] */
+   /** @var Table[] - list of contained tables */
    private array $m_table_list = [];
-   /** @var bool - also print main table as array already */
-   protected $m_as_array = false;
-   /** @var bool - only provide required form fields when showing page for new entry */
-   protected $m_required_only_on_new_entry = true;
-   /** @var int selected entry */
-   protected $m_entry_id = null;
+   /** also print main table as array already? */
+   protected bool $m_as_array = false;
+   /**  only provide required form fields when showing page for new entry */
+   protected bool $m_required_only_on_new_entry = true;
+   /** currently selected entry */
+   protected ?int $m_entry_id = null;
 
    /** @var array - lazy fetch table contents */
-   private $m_data;
+   private array $m_data;
 
    /**
     * protected getters
@@ -38,27 +39,26 @@ abstract class TableFormPage extends FormPage
       return is_null($name)? reset($this->m_table_list) : $this->m_table_list[$name]??null;
    }
 
-   protected function hasTable( string $name )
+   protected function hasTable( string $name ): bool
    {
       return isset( $this->m_table_list[$name] );
    }
 
    /**
-    * return list of tables to load for this page,
-    * as usable by table factory
-    * @return array[string]
+    * return list of table names to load for this page
+    * @return string[]
     */
-   abstract protected function configureTableList();
+   abstract protected function configureTableList(): array;
 
    /**
     * perform any page-specific configurations of the loaded tables
     */
-   abstract protected function configureTables();
+   abstract protected function configureTables(): void;
 
    /** get groups in form (optional)
-    * @return array[string]
+    * @return string[]
     */
-   protected function configureFormGroups()
+   protected function configureFormGroups(): array
    {
       return [];
    }
@@ -85,18 +85,18 @@ abstract class TableFormPage extends FormPage
     * with grouping:  [ 'group name' => [ 'primary key value' => 'entry title', ... ], ... ]
     * without groups: [ 'primary key value' => 'entry title', ... ]
     *
-    * @return \dbfe\SelectQuery|array
+    * @return SelectQuery|array|null
     */
-   protected function configureEntrySelection()
+   protected function configureEntrySelection(): SelectQuery|array|null
    {
       return null;
    }
 
    /**
     * get any views provided by this page (optional)
-    * @return array[string => SelectQuery]
+    * @return SelectQuery[]
     */
-   protected function configureViewList()
+   protected function configureViewList(): array
    {
       return [];
    }
@@ -123,7 +123,7 @@ abstract class TableFormPage extends FormPage
          }
          else
          {
-            throw new DatabaseError('Table ' . $parent->getName() . " has no column $linkColName to attach view $name to.");
+            throw new DatabaseStructureIssue('Table ' . $parent->getName() . " has no column $linkColName to attach view $name to.");
          }
       }
       return $view;
@@ -172,9 +172,8 @@ abstract class TableFormPage extends FormPage
 
    /**
     * derive entry id from input. May be overridden by child class
-    * @return integer
     */
-   protected function readEntryId()
+   protected function readEntryId(): ?int
    {
       /* get the entry id */
       $id = $_REQUEST['id'] ?? null;
@@ -188,29 +187,24 @@ abstract class TableFormPage extends FormPage
 
    /**
     * return the currently selected entry id of the form
-    * @return integer
     */
-   public function getEntryId()
+   public function getEntryId(): ?int
    {
       return $this->m_entry_id;
    }
 
    /**
     * return content of Form\Validator definition
-    * {@inheritDoc}
-    * @see \dbfe\formPage::getValidatorConfig()
     */
-   protected function getValidatorConfig()
+   protected function getValidatorConfig(): \getoma\dbfe\Form\Validator\Profile
    {
       return $this->getTable()->getFormValidation( !$this->m_as_array&&($this->m_entry_id === 0), $this->m_as_array );
    }
 
    /**
     * process the validated data in $this->fv
-    * {@inheritDoc}
-    * @see \dbfe\formPage::processInput()
     */
-   protected function processInput()
+   protected function processInput(): void
    {
       if( $this->m_as_array )
       {
@@ -229,10 +223,8 @@ abstract class TableFormPage extends FormPage
    }
 
    /**
-    * {@inheritDoc}
-    * @see \dbfe\formPage::getData()
     */
-   protected function getData( bool $refetch = false )
+   protected function getData( bool $refetch = false ): array
    {
       if( $refetch || !isset($this->m_data) )
       {
@@ -242,8 +234,6 @@ abstract class TableFormPage extends FormPage
    }
 
    /**
-    * {@inheritDoc}
-    * @see \getoma\dbfe\Frontend\FormPage::getFormDefinition()
     */
    protected function getFormDefinition( array $values ): ConfigurationListIf
    {
@@ -266,7 +256,7 @@ abstract class TableFormPage extends FormPage
 
    /**
     */
-   private function processSelectionQuery( SelectQuery $query )
+   private function processSelectionQuery( SelectQuery $query ): array
    {
       /* fetch the selection data */
       $q_result = $this->getDbh()->query($query->asString());
@@ -330,10 +320,12 @@ abstract class TableFormPage extends FormPage
       /* generate default query if none given */
       if( !isset($query) )
       {
+         $idCol = $this->getTable()->getIdColumn() ?? throw new DatabaseStructureIssue("{$this->getTable()->getName()} does not have an ID column.");
+         $nameCol = $this->getTable()->getNameColumn() ?? throw new DatabaseStructureIssue("{$this->getTable()->getName()} does not have a Name column.");
          $query = new SelectQuery();
-         $query->columns    = [ $this->getTable()->getIdColumn()->getName(), $this->getTable()->getNameColumn()->getName() ];
+         $query->columns    = [ $idCol->getName(), $nameCol->getName() ];
          $query->table_spec = $this->getTable()->getName();
-         $query->order      = $this->getTable()->getNameColumn()->getName();
+         $query->order      = $nameCol->getName();
       }
       $entries = ($query instanceof SelectQuery)? $this->processSelectionQuery($query) : $query;
 
@@ -402,7 +394,7 @@ abstract class TableFormPage extends FormPage
     * {@inheritDoc}
     * @see dbfeIf::getTitle()
     */
-   public function getTitle()
+   public function getTitle(): string
    {
       $result = parent::getTitle();
       if( isset($this->m_entry_id) )
@@ -484,5 +476,15 @@ abstract class TableFormPage extends FormPage
          parent::input();
       }
       return $this->m_input_valid;
+   }
+
+   /**
+    * get a reference column (helper function for derived classes)
+    */
+   protected function getReferenceColumn(string $table_name, string $column_name): ReferenceColumn
+   {
+      $column = $this->getTable($table_name)->getColumn($column_name);
+      if( !($column instanceof ReferenceColumn) ) throw new \LogicException('not a reference column');
+      return $column;
    }
 }
