@@ -7,7 +7,8 @@ use getoma\dbfe\Table\Column\ColumnIf;
 use getoma\dbfe\Table\Column\DispType;
 use getoma\dbfe\Util\FileHandler\FileHandlerIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
-use getoma\dbfe\Util\QueryBuilder\SelectQuery;
+
+use Aura\SqlQuery\Common\SelectInterface;
 
 interface TableIf
 {
@@ -31,7 +32,7 @@ interface TableIf
     * set a application-defined set of allowed input values
     * for a column
     */
-   function setValueSelection( string $column, array|SelectQuery $selection ): void;
+   function setValueSelection( string $column, array|SelectInterface $selection ): void;
 
    /**
     * get name of the table
@@ -112,11 +113,6 @@ interface TableIf
      * @return bool
      */
     function hasUploads(): bool;
-
-    /**
-     * retrieve data from this table
-     */
-    function query( SelectQuery $query ): \PDOStatement;
 
     /**
      * check if a specific id existst in the table data

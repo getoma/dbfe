@@ -15,16 +15,12 @@ use getoma\dbfe\Util\Exception\DatabaseError;
 use getoma\dbfe\Util\Exception\DatabaseUpdateError;
 use getoma\dbfe\Util\FileHandler\FileHandlerIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
-use getoma\dbfe\Util\QueryBuilder\DeleteQuery;
-use getoma\dbfe\Util\QueryBuilder\InsertQuery;
-use getoma\dbfe\Util\QueryBuilder\SelectQuery;
-use getoma\dbfe\Util\QueryBuilder\UpdateQuery;
+
+use Aura\SqlQuery\Common\SelectInterface;
+use Aura\SqlQuery\QueryFactory;
 
 class Table implements TableIf
 {
-   /** @var string */
-   protected $m_name;
-
    /** @var ColumnIf[] */
    protected array $m_columns = [];
 
@@ -36,9 +32,6 @@ class Table implements TableIf
 
    /** @var FileHandlerColumn[] */
    protected array $m_filehdl = [];
-
-   /** @var \PDO */
-   protected \PDO $m_dbh;
 
    /** @var TableReference[] */
    protected array $m_extRef = [];
@@ -57,21 +50,25 @@ class Table implements TableIf
 
    /**
     * @param Factory $factory
-    * @param \PDO $dbh
+    * @param \PDO    $dbh
     * @param string $name
     * @param array $structure
-    * @param mixed $options any of BIDIRECTIONAL_REFERENCES | NO_HEURISTIC_TYPES | NO_REFERENCES
+    * @param int   $options any of BIDIRECTIONAL_REFERENCES | NO_HEURISTIC_TYPES | NO_REFERENCES
     * @throws \Exception
     */
-   public function __construct(Factory $factory, \PDO $dbh, string $name, array $structure, $options = 0 )
+   public function __construct(
+      protected readonly Factory $factory,
+      protected readonly \PDO $dbh,
+      protected readonly QueryFactory $query_factory,
+      protected readonly string $name,
+      array $structure,
+      int $options = 0
+   )
    {
-      $this->m_name = $name;
-      $this->m_dbh  = $dbh;
-
       /* traverse through all columns of the table and process them */
       foreach( $structure as $col )
       {
-         $obj = new PlainColumn( $col, $this->getName(), !($options & self::NO_HEURISTIC_TYPES)  );
+         $obj = new PlainColumn( $col, $this->getName(), !($options & self::NO_HEURISTIC_TYPES) );
 
          $this->m_columns[$obj->getName()] = $obj;
          if( $obj->isPrimaryKey() ) $this->m_primKeys[$obj->getName()] = $obj;
@@ -83,6 +80,9 @@ class Table implements TableIf
       {
          $this->linkReferences($factory, $options);
       }
+
+      /* TODO: do some validity checking on factory creation */
+      $this->query_factory ??= new QueryFactory($dbh->getAttribute(\PDO::ATTR_DRIVER_NAME));
    }
 
    /**
@@ -99,7 +99,7 @@ class Table implements TableIf
                 from information_schema.key_column_usage
                 where table_schema = (select database()) and
                 table_name = '".$this->getName()."' and referenced_table_name is not null";
-      $ref_result = $this->m_dbh->query($query);
+      $ref_result = $this->dbh->query($query);
 
       if( !$ref_result ) return;
 
@@ -113,7 +113,8 @@ class Table implements TableIf
             $reftable->registerReference( new TableReference( $this, $row['column_name'], $row['referenced_column_name']) );
          }
 
-         $obj = new ReferenceColumn( $this->getColumn($row['column_name']), $this->getName(), $reftable );
+         $obj = new ReferenceColumn( $this->getColumn($row['column_name']), $this->getName(), $reftable,
+                                     $this->dbh, $this->query_factory );
 
          $this->m_columns[$obj->getName()] = $obj;
          if( $obj->isPrimaryKey() ) $this->m_primKeys[$obj->getName()] = $obj;
@@ -154,14 +155,15 @@ class Table implements TableIf
     * set a application-defined set of allowed input values
     * for a column
     */
-   public function setValueSelection( string $column, array|SelectQuery $selection ): void
+   public function setValueSelection( string $column, array|SelectInterface $selection ): void
    {
       if( isset( $this->m_columns[$column] ) )
       {
-         if( $selection instanceof SelectQuery )
+         if( $selection instanceof SelectInterface )
          {
-            $db_data = $this->m_dbh->query($selection->asString());
-            $selection = $db_data->fetchAll( \PDO::FETCH_COLUMN );
+            $query = $this->dbh->prepare($selection->getStatement());
+            $query->execute($selection->getBindValues());
+            $selection = $query->fetchAll(\PDO::FETCH_COLUMN);
             $selection = array_combine( $selection, $selection );
          }
 
@@ -186,7 +188,7 @@ class Table implements TableIf
     */
    public function getName(): string
    {
-      return $this->m_name;
+      return $this->name;
    }
 
    /**
@@ -311,7 +313,7 @@ class Table implements TableIf
     * register a reference to another table
     * @param TableReference $ref
     */
-   public function registerReference( TableReference $ref )
+   public function registerReference( TableReference $ref ): void
    {
       $this->m_extRef[$ref->table->getName()] = $ref;
    }
@@ -338,42 +340,22 @@ class Table implements TableIf
    }
 
    /**
-    * retrieve data from this table
-    */
-   public function query( SelectQuery $query ): \PDOStatement
-   {
-      /* complete the query specification */
-      if( !isset($query->table_spec) )
-      {
-         $query->table_spec = $this->getName();
-      }
-
-      /* execute the query */
-      return $this->m_dbh->query( $query->asString() );
-   }
-
-   /**
     * check if a specific id existst in the table data
     */
    public function hasId( int $id ): bool
    {
-      $result = null;
+      $result = false;
 
       $id_col = $this->getIdColumn();
       if( isset($id_col) )
       {
-         $q = new SelectQuery();
-         $q->columns    = ['count(*)'];
-         $q->table_spec = $this->getName();
-         $q->filter     = [ $id_col->getName() => $id ];
-         if( $rc = $this->m_dbh->query($q->asString()) )
-         {
-            $result = ($rc->rowCount() > 0);
-         }
-         else
-         {
-            throw new \RuntimeException("could not retrieve id from database");
-         }
+         $query = $this->query_factory->newSelect()
+            ->cols(['count(*)'])
+            ->from($this->getName())
+            ->where($id_col->getName().'=?', [$id]);
+         $stmt = $this->dbh->prepare($query->getStatement());
+         $stmt->execute($query->getBindValues());
+         $result = $stmt->fetchColumn() > 0;
       }
 
       return $result;
@@ -392,10 +374,43 @@ class Table implements TableIf
       /* get all non-skipped rows */
       $col_list = array_filter( $this->getColumns(), function($c) { return !$c->doSkip(); } );
       /* construct the query */
-      $query = new InsertQuery();
-      $query->table_spec   = $this->getName();
-      $query->columns      = array_fill_keys( array_keys($col_list), '?' );
-      $query->on_duplicate = $updateOnDuplicate;
+      $iquery = $this->query_factory->newInsert();
+      $iquery->into($this->getName());
+      $iquery->cols( $col_list );
+      $uquery = null;
+      $squery = null;
+      if( $updateOnDuplicate )
+      {
+         /* additionally, prepare an update statement, as well as a select statement to check whether we have
+          * anything to update.
+          * For now, there is no other chance to know whether a data set is already part of the database
+          * with standard SQL features - INSERT IGNORE, ON DUPLICATE KEY UPDATE, UPSERT, etc. are all
+          * non-standardized extensions of the specific database engines.
+          * As a future extension, we could add a marker to the provided forms to mark pre-existing datasets
+          */
+         $ucol_list = array_filter( $this->getNonKeyColumns(), fn($c) => !$c->doSkip() );
+         if( $ucol_list )
+         {
+            /* pure relationship tables may consists only of their primary key.
+             * for those tables, we cannot and don't need to prepare an update statement
+             * for those, we only need to check whether we have to insert, and be done otherwise
+             */
+            $uquery = $this->query_factory->newUpdate()
+               ->table($this->getName())
+               ->cols( array_map( fn($c) => $c->getName(),  $ucol_list) );
+         }
+
+         $squery = $this->query_factory->newSelect()
+         ->from($this->getName())
+         ->cols(['count(*)']);
+
+         foreach( $this->getPrimaryKey() as $c )
+         {
+            $filt = "{$c->getName()}=:{$c->getName()}";
+            if($uquery) $uquery->where($filt);
+            $squery->where($filt, [$c->getName() => null]);
+         }
+      }
 
       /* handle file uploads */
       $this->handleFileUploads($data);
@@ -409,7 +424,7 @@ class Table implements TableIf
       $datasets      = []; // array of array of several rows of data
       $data_single   = []; // array of single-row-data
       $data_as_array = false; // check whether it's array data at all
-      foreach( $col_list as $colname => $col ) /**@var PlainColumn $col */
+      foreach( $col_list as $colname => $col ) /** @var PlainColumn $col */
       {
          $field_name = $col->getAfixedName();
          if( is_array($data[$field_name]) )
@@ -453,9 +468,10 @@ class Table implements TableIf
       /* hard-setting of filter */
       foreach( $this->filter as $colname => $val )
       {
-         $query->columns[$colname] = '?';
-         $col_list[$colname]       = null;
-         $data_single[$colname]    = $val;
+         $iquery->cols([$colname]);
+         if( $uquery ) $uquery->cols([$colname]);
+         $col_list[$colname]    = null;
+         $data_single[$colname] = $val;
       }
 
       /* catch 'non-array-input' case */
@@ -465,7 +481,19 @@ class Table implements TableIf
       }
 
       /* prepare the update statement */
-      $stmt = $this->m_dbh->prepare( $query->asString() );
+      $istmt = $this->dbh->prepare( $iquery->getStatement() );
+      $ustmt = $uquery? $this->dbh->prepare( $uquery->getStatement() ) : null;
+      $sstmt = $squery? $this->dbh->prepare( $squery->getStatement() ) : null;
+      $idcol = $this->getIdColumn() ?? false;
+
+      /**
+       * if this method shall be able to handle pre-existing entries ("upsert"/"on duplicate key update")
+       * following handling takes place:
+       * - if this table has an AUTO_INCREMENT column ("IdColumn"), we check if the row ID is already set
+       *   --> if id is set, attempt an update, otherwise attempt an insert
+       * - if this table has no ID column, then
+       *   --> first check if this entry already exists, before updating or inserting
+       */
 
       /* store the data into the database */
       foreach( $datasets as $row )
@@ -474,18 +502,47 @@ class Table implements TableIf
          $dataset = [];
          foreach( $col_list as $colname => $col )
          {
-            $dataset[] = $row[$colname]??$data_single[$colname]??$col->getDefault();
+            $dataset[$colname] = $row[$colname]??$data_single[$colname]??$col->getDefault();
          }
 
-         /* store this row */
-         if( !$stmt->execute($dataset) ) throw new DatabaseUpdateError( $stmt->errorInfo()[2] );
+         if( $updateOnDuplicate )
+         {
+            if( $idcol )
+            {
+               /* we have an auto_increment column - decide based on its existing value what to do */
+               if( $dataset[$idcol->getName()] ?? false ) $ustmt->execute($dataset); // id already exists --> update
+               else                                       $istmt->execute($dataset); // no id, yet --> insert
+            }
+            else
+            {
+               // first attempt an update
+               $select_filter = array_intersect_key($dataset, $squery->getBindValues());
+               $sstmt->execute($select_filter);
+               if( $sstmt->fetchColumn() === 0 )
+               {
+                  $istmt->execute($dataset);
+               }
+               else if( $ustmt)
+               {
+                  $ustmt->execute($dataset);
+               }
+               else
+               {
+                  // no ustmt prepared, which means there is nothing to update
+               }
+            }
+         }
+         else
+         {
+            // we don't have to consider pre-existing duplicates, just insert
+            $istmt->execute($dataset);
+         }
 
-         /* update the id col in the orginal data */
-         $idcol = $this->getIdColumn();
-         if( isset($idcol) && !isset($row[$idcol->getName()]) )
+         /* update the id col in the orginal data after an insert */
+         if( $idcol && !isset($row[$idcol->getName()]) )
          {
             $field_name = $idcol->getAfixedName();
-            $this->last_insert_id = $this->m_dbh->lastInsertId();
+            $this->last_insert_id = $this->dbh->lastInsertId();
 
             if( is_array($data[$field_name]) ) $data[$field_name][] = $this->last_insert_id;
             else                               $data[$field_name]   = $this->last_insert_id;
@@ -504,8 +561,10 @@ class Table implements TableIf
       /* pre-process identifier */
       if( is_scalar($identifier) )
       {
-         $idcols[]   = $this->getColumn( $this->getPrimaryKeyWithCheck() );
-         $identifier = [ $idcols[0]->getName() => $identifier ];
+         $idcol_name = $this->getPrimaryKeyWithCheck();
+         $idcol = $this->getColumn($idcol_name);
+         $idcols[$idcol_name] = $idcol;
+         $identifier = [ $idcol_name => $identifier ];
       }
       else
       {
@@ -514,7 +573,7 @@ class Table implements TableIf
             $idcol = $this->getColumn($key);
             if( isset($idcol) )
             {
-               $idcols[] = $idcol;
+               $idcols[$key] = $idcol;
             }
             else
             {
@@ -526,27 +585,22 @@ class Table implements TableIf
       /* get all non-skipped columns */
       $col_list = array_filter( $this->getNonKeyColumns(), function($c) { return !$c->doSkip(); } );
       /* create the update query */
-      $query = new UpdateQuery();
-      $query->table_spec = $this->getName();
-      $query->columns    = array_fill_keys( array_keys($col_list), '?' );
-      $query->filter     = array_merge(
-            array_fill_keys( array_keys($identifier), '?'),
-            array_fill_keys( array_keys($this->filter), '?') );
-
-
-      /* collect the column name order */
-      $col_list = array_merge( array_values($col_list), $idcols );
+      $query = $this->query_factory->newUpdate();
+      $query->table($this->getName());
+      $query->cols(array_keys($col_list));
+      foreach( array_keys(array_merge($identifier, $this->filter)) as $col )
+      {
+         $query->where("$col=:$col");
+      }
 
       /* handle file uploads */
       $this->handleFileUploads($data);
 
       /* store the data */
-      $stmt = $this->m_dbh->prepare( $query->asString() );
+      $stmt = $this->dbh->prepare( $query->getStatement() );
       /** @var PlainColumn $col */
-      $args = array_map( function($col) use ($data)
-                         {
-                            return $this->filter[$col->getName()]??$data[$col->getAfixedName()]??null;
-                         }, $col_list);
+      $args = array_map( fn($col) => $this->filter[$col->getName()]??$data[$col->getAfixedName()]??null,
+                         $idcols + $col_list);
 
       if( !$stmt->execute( $args ) ) throw new DatabaseUpdateError( $stmt->$stmt->errorInfo()[2] );
 
@@ -590,12 +644,12 @@ class Table implements TableIf
       /**
        * generate the delete query and its filter
        */
-      $query = new DeleteQuery();
-      $query->table_spec = $this->getName();
-      $query->filter     = array_fill_keys( $id_columns, '?');
+      $query = $this->query_factory->newDelete();
+      $query->from($this->getName());
+      foreach( $id_columns as $colname ) $query->where("$colname=?");
 
       /** prepare the statement */
-      $stmt = $this->m_dbh->prepare($query->asString());
+      $stmt = $this->dbh->prepare($query->getStatement());
 
       /** get a mapping $id_columns => $id_values */
       $id_assoc = array_flip($id_columns);
@@ -625,12 +679,12 @@ class Table implements TableIf
           */
          if( !empty( $this->m_filehdl) )
          {
-            $fname_query = new SelectQuery();
-            $fname_query->filter     = $query->filter;
-            $fname_query->table_spec = $query->table_spec;
-            $fname_query->columns    = array_keys( $this->m_filehdl );
+            $fname_query = $this->query_factory->newSelect();
+            $fname_query->from($this->getName());
+            $fname_query->cols(array_keys( $this->m_filehdl ));
+            foreach( $id_columns as $colname ) $fname_query->where("$colname=?");
 
-            $fnames = $this->m_dbh->prepare($fname_query->asString());
+            $fnames = $this->dbh->prepare($fname_query->getStatement());
 
             if( !$fnames->execute(array_values($idrow)) ) throw new DatabaseError( $fnames->$stmt->errorInfo()[2] );
 
@@ -716,7 +770,7 @@ class Table implements TableIf
          /* delete this row */
          $del_data[] = $identifier;
       }
-      $this->dropRowset( $del_id_columns, $del_data );
+      if( $del_data ) $this->dropRowset( $del_id_columns, $del_data );
    }
 
    /**
@@ -750,16 +804,19 @@ class Table implements TableIf
       $result = [];
 
       /* build query to retrieve the contents of this table */
-      $query = new SelectQuery();
-      $query->table_spec = $this->getName();
+      $query = $this->query_factory->newSelect();
+      $query->from($this->getName());
       /* construct column retrieval */
-      $query->columns = array_map( function($c) { return $c->sqlColumnSpec(); }, $this->getColumns() );
+      $query->cols(array_values(array_map( fn($c) => $c->sqlColumnSpec(), $this->getColumns() )) );
       /* add row selection */
-      if( is_array($selector) )       $query->filter = $selector;
-      else if( is_scalar($selector) ) $query->filter = [ $this->getPrimaryKeyWithCheck() => $selector ];
-      else throw new \LogicException( "invalid selector $selector" );
-      /* add customized filter (with the selector filter having higher prio */
-      $query->filter = array_merge( $this->filter, $query->filter );
+      if( is_scalar($selector) ) $selector = [ $this->getPrimaryKeyWithCheck() => $selector ];
+      if( !is_array($selector) ) throw new \LogicException( "invalid selector of type " . get_class($selector));
+
+      /* add customized filter (with the selector filter having higher prio) and incorporate into query */
+      foreach( array_merge($this->filter, $selector) as $col => $value )
+      {
+         $query->where("$col=:$col", [$col => $value]);
+      }
 
       if( !empty($this->order) )
       {
@@ -768,22 +825,22 @@ class Table implements TableIf
          {
             if( $col instanceof ReferenceColumnIf )
             {
-               /**@var $col \dbfe\ReferenceColumnIf */
                $table_name = $col->getTable()->getName();
                $col_name   = $col->getName();
-               $query->table_spec .= " left join $table_name using($col_name)";
+               $query->join('left', $table_name, "using ($col_name)");
             }
          }
 
          /* add ordering */
-         $query->order = $this->order;
+         $query->orderBy($this->order);
       }
 
       /* execute query */
-      $data = $this->m_dbh->query( $query->asString() );
-      if( !$data ) return [];
+      $stmt = $this->dbh->prepare( $query->getStatement() );
+      $filter = $query->getBindValues();
+      $stmt->execute($filter);
       $rowid = 1;
-      while( $row = $data->fetch(\PDO::FETCH_ASSOC) )
+      while( $row = $stmt->fetch(\PDO::FETCH_ASSOC) )
       {
          foreach( $row as $name => $value )
          {
@@ -811,7 +868,7 @@ class Table implements TableIf
           * table needs to reference our ID column
           * no other setup supported (for now)
           */
-         if( !isset($query->filter[$refTab->refcolumn]) )
+         if( !isset($filter[$refTab->refcolumn]) )
          {
             trigger_error( sprintf("unsupported reference: %s.%s => %s.%s",
                                    $refTab->table->getName(), $refTab->column, $this->getName(), $refTab->refcolumn ),
@@ -820,7 +877,7 @@ class Table implements TableIf
          }
 
          /* retrieve all data connected to the current entry of this table */
-         $ref_selector = [ $refTab->column => $query->filter[$refTab->refcolumn] ];
+         $ref_selector = [ $refTab->column => $filter[$refTab->refcolumn] ];
          $ref_data = $refTab->table->getFormData( $ref_selector );
 
          /* integrate this data into our result set */

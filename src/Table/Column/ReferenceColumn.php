@@ -7,21 +7,26 @@ use getoma\dbfe\Form\Printer\Configuration\ConfigurationIf;
 use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
 use getoma\dbfe\Table\Table;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
-use getoma\dbfe\Util\QueryBuilder\SelectQuery;
 use getoma\dbfe\Util\Exception\DatabaseStructureIssue;
+
+use Aura\SqlQuery\Common\SelectInterface;
+use Aura\SqlQuery\QueryFactory;
 
 /**
  * a db table column which references another table via foreign key constraint
  */
 class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
 {
-   protected array|SelectQuery $query;
-   protected array|SelectQuery $disabledKeys = [];
+   protected array|SelectInterface $query;
+   protected array|SelectInterface $disabledKeys = [];
 
    public function __construct(
       PlainColumn|array $structure,
       string $table,
-      protected readonly Table $refTable)
+      protected readonly Table $refTable,
+      private readonly \PDO $dbh,
+      private readonly QueryFactory $query_factory,
+   )
    {
       parent::__construct( $structure, $table, false );
    }
@@ -42,14 +47,19 @@ class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
          // get the content of the other table, select id and name col
          $idCol = $this->refTable->getIdColumn() ?? throw new DatabaseStructureIssue("{$this->refTable->getName()} does not have an ID column.");
          $nameCol = $this->refTable->getNameColumn() ?? throw new DatabaseStructureIssue("{$this->refTable->getName()} does not have a Name column.");
-         $this->query = new SelectQuery();
-         $this->query->columns    = [ $idCol->getName(), $nameCol->getName() ];
-         $this->query->filter     = $filter;
+         $this->query = $this->query_factory->newSelect()
+            ->cols([ $idCol->getName(), $nameCol->getName() ])
+            ->from($this->getTable()->getName());
+         foreach( $filter as $col => $value )
+         {
+            $this->query->where("$col=:$col", [$col => $value]);
+         }
       }
 
-      if( $this->query instanceof SelectQuery )
+      if( $this->query instanceof SelectInterface )
       {
-         $refData = $this->refTable->query( $this->query );
+         $stmt = $this->dbh->prepare( $this->query );
+         $stmt->execute($this->query->getBindValues());
 
          $refValues = [];
          if( $addNA )
@@ -58,9 +68,9 @@ class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
          }
 
          // add the content of the referenced column to the selectable data
-         if( $refData )
+         if( $stmt )
          {
-            while( $row = $refData->fetch( \PDO::FETCH_NUM ) )
+            while( $row = $stmt->fetch( \PDO::FETCH_NUM ) )
             {
                $refValues[$row[0]] = $row[1];
             }
@@ -84,9 +94,11 @@ class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
    private function getDisabledKeys()
    {
       $query = $this->disabledKeys;
-      if( $query instanceof SelectQuery )
+      if( $query instanceof SelectInterface )
       {
-         return $this->refTable->query( $query )->fetchAll(\PDO::FETCH_COLUMN);
+         $stmt = $this->dbh->prepare($query->getStatement());
+         $stmt->execute($query->getBindValues());
+         return $stmt->fetchAll(\PDO::FETCH_COLUMN);
       }
       else if( is_array($query) )
       {
@@ -112,16 +124,18 @@ class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
          , 'label' => $lblHdl->get( $this->getName(), $this->tablename )
          , 'required' => ($this->isRequired() && !$as_array)
          , 'fixed'    => $this->isFixed()
-         , 'type'  => 'select', 'selection' => $this->getReferenceData(), 'disabled_keys' => $this->getDisabledKeys() ] );
+         , 'type'  => 'select', 'selection' => $this->getReferenceData()
+         , 'disabled_keys' => $this->getDisabledKeys()
+         ] );
    }
 
    /**
     * set a customized array to retrieve the selection data set
     * to set the reference content
-    * @param SelectQuery|array $query
-    * @param SelectQuery|array $disable_keys - any keys that shall no longer be selectable (unless they are already used for a specific field)
+    * @param SelectInterface|array $query        - the query (or prepared dataset)
+    * @param SelectInterface|array $disable_keys - any entry that shall no longer be selectable (unless they are already used for a specific field)
     */
-   public function setReferenceQuery( SelectQuery|array $query, SelectQuery|array|null $disable_keys = null ): void
+   public function setReferenceQuery( SelectInterface|array $query, SelectInterface|array|null $disable_keys = null ): void
    {
       $this->query = $query;
       if( isset($disable_keys) ) $this->disabledKeys = $disable_keys;

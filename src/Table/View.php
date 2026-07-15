@@ -6,10 +6,10 @@ use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
 use getoma\dbfe\Table\Column\ColumnIf;
 use getoma\dbfe\Table\Column\DispType;
 use getoma\dbfe\Table\Column\PlainColumn;
-use getoma\dbfe\Util\Exception\DatabaseError;
 use getoma\dbfe\Util\FileHandler\FileHandlerIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
-use getoma\dbfe\Util\QueryBuilder\SelectQuery;
+
+use Aura\SqlQuery\Common\SelectInterface;
 
 class View implements TableIf
 {
@@ -24,22 +24,21 @@ class View implements TableIf
 
    function __construct(
       protected readonly string $name,
-      protected readonly SelectQuery $query,
+      protected readonly SelectInterface $query,
       protected readonly \PDO $dbh
    )
    {
       $this->m_hide_empty = self::$HIDE_EMPTY;
 
       $first = true;
-      foreach( $query->columns as $col )
+      foreach( $query->getCols() as $alias => $col )
       {
-         /** check if there's an explicit name set for this column */
-         /** @var array $matches */
-         if( preg_match( '/([a-zA-Z0-9_]+)["\']? *$/', $col, $matches ) )
+         /** retrieve explicit alias of column (either already in alias, or extract from column spec) */
+         if( is_numeric($alias) )
          {
-            $col = $matches[1];
+            $alias = preg_match( '/([a-zA-Z0-9_]+)["\']? *$/', $col, $matches )? $matches[1] : $col;
          }
-         $this->m_columns[$col] = new ViewColumn($col, $name, $first);
+         $this->m_columns[$alias] = new ViewColumn($alias, $name, $first);
          $first = false;
       };
    }
@@ -142,7 +141,7 @@ class View implements TableIf
       throw new \LogicException("Views can't have uploads!");
    }
 
-   public function setValueSelection(string $column, array|SelectQuery $selection): void
+   public function setValueSelection(string $column, array|SelectInterface $selection): void
    {
       throw new \LogicException("Views can't have value selections!");
    }
@@ -183,17 +182,25 @@ class View implements TableIf
       /* build query to retrieve the contents of this table */
       $query = clone $this->query;
       /* add row selection */
-      if( is_array($selector) )       $query->filter = array_merge( $query->filter, $selector );
-      /// TODO else if( is_scalar($selector) ) $query->filter[$this->getPrimaryKeyWithCheck()] = $selector;
-      else throw new \LogicException( "invalid selector $selector" );
+      if( is_array($selector) )
+      {
+         foreach( $selector as $key => $value )
+         {
+            $query->where("$key=?", [$value]);
+         }
+      }
+      else
+      {
+         throw new \LogicException( "invalid selector $selector" );
+      }
 
       /* execute query */
-      $data = $this->dbh->query( $query->asString() );
-      if( !$data ) throw new DatabaseError($this->dbh->errorCode());
+      $stmt = $this->dbh->prepare( $query->getStatement() );
+      $stmt->execute($query->getBindValues());
 
-      $result[$this->getName() . "___empty"] = ($data->rowCount() === 0);
+      $result[$this->getName() . "___empty"] = ($stmt->rowCount() === 0);
 
-      while( $row = $data->fetch(\PDO::FETCH_ASSOC) )
+      while( $row = $stmt->fetch(\PDO::FETCH_ASSOC) )
       {
          foreach( $row as $name => $value )
          {
@@ -202,11 +209,6 @@ class View implements TableIf
       }
 
       return $result;
-   }
-
-   public function query(SelectQuery $query): \PDOStatement
-   {
-      throw new \LogicException('custom query for View not supported!');
    }
 
    public function getFormValidation(bool $skip_auto_increment = false, bool $as_array = false, $skip = []): \getoma\dbfe\Form\Validator\Profile

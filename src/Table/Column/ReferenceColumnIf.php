@@ -2,16 +2,14 @@
 
 namespace getoma\dbfe\Table\Column;
 
-use getoma\dbfe\Table\Table;
-use getoma\dbfe\Util\QueryBuilder\SelectQuery;
+use Aura\SqlQuery\Common\SelectInterface;
 
 interface ReferenceColumnIf extends ColumnIf
 {
-   /** set a customized array to retrieve the selection data set
-    *  to set the reference content
-    * @param SelectQuery $query
+   /* set a customized array to retrieve the selection data set
+    * to set the reference content
     */
-   public function setReferenceQuery( SelectQuery $query ): void;
+   public function setReferenceQuery( SelectInterface $query ): void;
 
    /**
     * get the content of the reference selection
@@ -21,5 +19,5 @@ interface ReferenceColumnIf extends ColumnIf
    /**
     * get the table name of this reference
     */
-   public function getTable(): Table;
+   public function getTable(): \getoma\dbfe\Table\Table;
 }

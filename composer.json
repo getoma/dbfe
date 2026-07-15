@@ -9,6 +9,7 @@
         }
     },
     "require": {
-        "php": ">=8.4"
+        "php": ">=8.4",
+        "aura/sqlquery": "^3.0"
     }
 }

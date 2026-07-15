@@ -10,7 +10,9 @@ use getoma\dbfe\Table\TableIf;
 use getoma\dbfe\Table\TableReference;
 use getoma\dbfe\Util\Exception\DatabaseStructureIssue;
 use getoma\dbfe\Util\HtmlElement\HtmlElement;
-use getoma\dbfe\Util\QueryBuilder\SelectQuery;
+
+use Aura\SqlQuery\Common\SelectInterface;
+use Aura\SqlQuery\QueryFactory;
 
 abstract class TableFormPage extends FormPage
 {
@@ -22,6 +24,8 @@ abstract class TableFormPage extends FormPage
    protected bool $m_required_only_on_new_entry = true;
    /** currently selected entry */
    protected ?int $m_entry_id = null;
+
+   protected readonly QueryFactory $query_factory;
 
    /** @var array - lazy fetch table contents */
    private array $m_data;
@@ -36,7 +40,7 @@ abstract class TableFormPage extends FormPage
     */
    protected function getTable(?string $name = null): \getoma\dbfe\Table\Table
    {
-      return is_null($name)? reset($this->m_table_list) : $this->m_table_list[$name]??null;
+      return is_null($name)? reset($this->m_table_list) : $this->m_table_list[$name];
    }
 
    protected function hasTable( string $name ): bool
@@ -64,7 +68,7 @@ abstract class TableFormPage extends FormPage
    }
 
    /**
-    * configure the entry selection for this page by providing a SelectQuery
+    * configure the entry selection for this page by providing a QueryBuilder
     * that returns a list of all Entries + any info needed to fine-tune the presentation
     *
     * if your table contains a single "unique" column which shall be used as page title,
@@ -85,23 +89,21 @@ abstract class TableFormPage extends FormPage
     * with grouping:  [ 'group name' => [ 'primary key value' => 'entry title', ... ], ... ]
     * without groups: [ 'primary key value' => 'entry title', ... ]
     *
-    * @return SelectQuery|array|null
     */
-   protected function configureEntrySelection(): SelectQuery|array|null
+   protected function configureEntrySelection(): SelectInterface|array|null
    {
       return null;
    }
 
    /**
     * get any views provided by this page (optional)
-    * @return SelectQuery[]
     */
    protected function configureViewList(): array
    {
       return [];
    }
 
-   private function loadView( string $name, SelectQuery $spec ): TableIf
+   private function loadView( string $name, SelectInterface $spec ): TableIf
    {
       /* generate the view */
       $view = new \getoma\dbfe\Table\View( $name, $spec, $this->getDbh() );
@@ -133,13 +135,15 @@ abstract class TableFormPage extends FormPage
    {
       parent::__construct($options);
 
+      $this->query_factory = new QueryFactory($this->getDbh()->getAttribute(\PDO::ATTR_DRIVER_NAME));
+
       $this->m_entry_id = $this->readEntryId();
 
       /* create tables for this page */
       $table_list = $this->configureTableList();
       if( isset($table_list) && is_array($table_list) && count($table_list) )
       {
-         $fact  = $options['table_factory'] ?? new Factory( $this->getDbh() );
+         $fact  = $options['table_factory'] ?? new Factory( $this->getDbh(), $this->query_factory );
          $views = $this->configureViewList();
          foreach( $table_list as $tab_name )
          {
@@ -256,13 +260,14 @@ abstract class TableFormPage extends FormPage
 
    /**
     */
-   private function processSelectionQuery( SelectQuery $query ): array
+   private function processSelectionQuery( SelectInterface $query ): array
    {
       /* fetch the selection data */
-      $q_result = $this->getDbh()->query($query->asString());
+      $stmt = $this->getDbh()->prepare($query->getStatement());
+      $stmt->execute($query->getBindValues());
 
       /* check if valid query */
-      if( $q_result->columnCount() < 2 )
+      if( $stmt->columnCount() < 2 )
       {
          throw new \LogicException("invalid page selection array - needs to return at least 2 columns (id + naming)!");
       }
@@ -273,7 +278,7 @@ abstract class TableFormPage extends FormPage
       /* sort result set into groups, detect multiple entries along the specifiers as well */
       $pages = [];
       $entry_count = [];
-      while( $row = $q_result->fetch(\PDO::FETCH_NUM) )
+      while( $row = $stmt->fetch() )
       {
          $id = array_shift($row);
          $name = array_shift($row);
@@ -322,17 +327,18 @@ abstract class TableFormPage extends FormPage
       {
          $idCol = $this->getTable()->getIdColumn() ?? throw new DatabaseStructureIssue("{$this->getTable()->getName()} does not have an ID column.");
          $nameCol = $this->getTable()->getNameColumn() ?? throw new DatabaseStructureIssue("{$this->getTable()->getName()} does not have a Name column.");
-         $query = new SelectQuery();
-         $query->columns    = [ $idCol->getName(), $nameCol->getName() ];
-         $query->table_spec = $this->getTable()->getName();
-         $query->order      = $nameCol->getName();
+         $query = $this->query_factory->newSelect()
+            ->cols([$idCol->getName(), $nameCol->getName()])
+            ->from($this->getTable()->getName())
+            ->orderBy([$nameCol->getName()]);
       }
-      $entries = ($query instanceof SelectQuery)? $this->processSelectionQuery($query) : $query;
 
-      if( !is_array($entries) )
+      $entries = match(true)
       {
-         throw new \LogicException("invalid entry selection, must be array or SelectQuery");
-      }
+         ($query instanceof SelectInterface) => $this->processSelectionQuery($query),
+         is_array($query)                    => $query,
+         default => throw new \LogicException('invalid query type: ' . get_class($query))
+      };
 
       $is_grouped = false;
 

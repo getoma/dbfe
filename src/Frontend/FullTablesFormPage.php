@@ -2,6 +2,8 @@
 
 namespace getoma\dbfe\Frontend;
 
+use Aura\SqlQuery\Common\SelectInterface;
+
 abstract class FullTablesFormPage extends TableFormPage
 {
    /**
@@ -31,7 +33,7 @@ abstract class FullTablesFormPage extends TableFormPage
       return isset($this->m_entry_id)? [ $this->m_table_selection[$this->m_entry_id-1] ] : [];
    }
 
-   protected function configureEntrySelection(): array
+   protected function configureEntrySelection(): SelectInterface|array|null
    {
       $result = array_map( function($name)
       {

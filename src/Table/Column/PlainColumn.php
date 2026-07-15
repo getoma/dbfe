@@ -111,7 +111,7 @@ class PlainColumn implements ColumnIf
    public function sqlColumnSpec(?string $spec = null): string
    {
       if( isset($spec) ) $this->column_spec = $spec;
-      return sprintf($this->column_spec, $this->getName())." ".$this->getName();
+      return sprintf($this->column_spec, $this->getName())." AS ".$this->getName();
    }
 
    /**

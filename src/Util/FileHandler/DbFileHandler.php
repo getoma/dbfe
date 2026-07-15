@@ -2,10 +2,7 @@
 
 namespace getoma\dbfe\Util\FileHandler;
 
-use getoma\dbfe\Util\QueryBuilder\InsertQuery;
-use getoma\dbfe\Util\QueryBuilder\DeleteQuery;
-use getoma\dbfe\Util\QueryBuilder\SelectQuery;
-
+use Aura\SqlQuery\QueryFactory;
 use getoma\dbfe\Util\Exception\DatabaseUpdateError;
 
 /**
@@ -25,13 +22,27 @@ class DbFileHandler extends BaseFileHandler
       get {
          if( !isset($this->insert_stmt) )
          {
-            $query = new InsertQuery();
-            $query->table_spec = $this->table_name;
-            $query->columns = [ 'Uploads_ID' => '?', 'Name' => '?', 'Type' => '?', 'Size' => '?', 'Content' => '?' ];
-            $query->on_duplicate = true;
-            $this->insert_stmt = $this->dbh->prepare($query->asString());
+            /** @var \Aura\SqlQuery\Mysql\Insert $query */
+            $query = $this->queryFactory->newInsert();
+            $query->into($this->table_name);
+            $query->cols([ 'Name', 'Type', 'Size', 'Content' ]);
+            $this->insert_stmt = $this->dbh->prepare($query->getStatement());
          }
          return $this->insert_stmt;
+      }
+   }
+
+   private \PDOStatement $update_stmt {
+      get {
+         if( !isset($this->update_stmt) )
+         {
+            $query = $this->queryFactory->newUpdate();
+            $query->table($this->table_name);
+            $query->cols(['Name', 'Type', 'Size', 'Content']);
+            $query->where('Uploads_ID=:Uploads_ID');
+            $this->update_stmt = $this->dbh->prepare($query->getStatement());
+         }
+         return $this->update_stmt;
       }
    }
 
@@ -39,11 +50,11 @@ class DbFileHandler extends BaseFileHandler
       get {
          if( !isset($this->info_stmt) )
          {
-            $query = new SelectQuery();
-            $query->table_spec = $this->table_name;
-            $query->filter     = [ 'Uploads_ID' => '?' ];
-            $query->columns    = ['Name', 'Type', 'Size'];
-            $this->info_stmt  = $this->dbh->prepare($query->asString());
+            $query = $this->queryFactory->newSelect();
+            $query->from($this->table_name);
+            $query->where('Uploads_ID=?');
+            $query->cols(['Name', 'Type', 'Size']);
+            $this->info_stmt = $this->dbh->prepare($query->getStatement());
          }
          return $this->info_stmt;
       }
@@ -53,10 +64,10 @@ class DbFileHandler extends BaseFileHandler
       get {
          if( !isset($this->del_stmt) )
          {
-            $del = new DeleteQuery();
-            $del->table_spec = $this->table_name;
-            $del->filter     = [ 'Uploads_ID' => '?' ];
-            $this->del_stmt  = $this->dbh->prepare($del->asString());
+            $query = $this->queryFactory->newDelete();
+            $query->from($this->table_name);
+            $query->where('Uploads_ID=?');
+            $this->del_stmt = $this->dbh->prepare($query->getStatement());
          }
          return $this->del_stmt;
       }
@@ -67,6 +78,7 @@ class DbFileHandler extends BaseFileHandler
     */
    function __construct(
       protected readonly \PDO $dbh,
+      protected readonly QueryFactory $queryFactory,
       protected readonly string $template = '',
       protected readonly string $table_name = 'Uploads',
       string $accept = '*/*',
@@ -82,8 +94,7 @@ class DbFileHandler extends BaseFileHandler
               Size int NOT NULL,
               Content mediumblob NOT NULL,
             PRIMARY KEY (Uploads_ID) )
-      MYSQL
-         );
+      MYSQL);
    }
 
    /**
@@ -96,12 +107,19 @@ class DbFileHandler extends BaseFileHandler
       $content = fread($fh, filesize($fname));
       fclose($fh);
 
-      if( !$this->insert_stmt->execute( [ $field_value, $file_data['name'], $file_data['type'], $file_data['size'], $content ] ) )
+      $values = [
+         'Name'    => $file_data['name'],
+         'Type'    => $file_data['type'],
+         'Size'    => $file_data['size'],
+         'Content' => $content
+      ];
+
+      $result = $field_value? $this->update_stmt->execute(['Uploads_ID' => $field_value] + $values) : $this->insert_stmt->execute($values);
+      if( !$result )
       {
          throw new DatabaseUpdateError("cannot upload file - " . $this->insert_stmt->errorInfo()[2] );
       }
-
-      return $this->dbh->lastInsertId();
+      return $field_value ?: $this->dbh->lastInsertId();
    }
 
    /**
