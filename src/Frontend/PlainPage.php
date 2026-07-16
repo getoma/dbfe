@@ -129,7 +129,7 @@ abstract class PlainPage implements DbfeIf
    /**
     * set the error message
     */
-   protected function setErrorMessage(string $err)
+   protected function setErrorMessage(string $err): void
    {
       $this->m_errmsg = $err;
    }

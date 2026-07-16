@@ -4,8 +4,8 @@ namespace getoma\dbfe\Table\Column;
 
 use getoma\dbfe\Form\Printer\Configuration\ConfigurationIf;
 use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
-use getoma\dbfe\Form\Validator\Constraint\Constraint;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
+use Respect\Validation\Validator as Validator;
 
 interface ColumnIf
 {
@@ -74,7 +74,7 @@ interface ColumnIf
    /**
     * provide column specific form\validator configuration
     */
-   public function getValidatorConfig(bool $as_array = false): \getoma\dbfe\Form\Validator\Profile;
+   public function getValidatorConfig(bool $as_array = false, bool $optional = false): Validator;
 
    /**
     * whether this column shall be skipped in the processing
@@ -85,7 +85,7 @@ interface ColumnIf
    /**
     * add a custom constraint from the application
     */
-   public function setCustomConstraint( Constraint $constraint ): void;
+   public function setCustomConstraint( Validator $constraint ): void;
 
    /**
     * make a column required although the database itself allows NULL values

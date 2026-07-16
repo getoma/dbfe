@@ -9,6 +9,7 @@ use getoma\dbfe\Util\FileHandler\FileHandlerIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
 
 use Aura\SqlQuery\Common\SelectInterface;
+use getoma\dbfe\Util\ValidatedInput;
 
 interface TableIf
 {
@@ -127,15 +128,13 @@ interface TableIf
 
     /**
      * insert data into the table
-     * @param array $data
-     * @param bool  $updateOnDuplicate
      */
-    function insertData( array $data, bool $updateOnDuplicate = false ): void;
+    function insertData(ValidatedInput $data, bool $updateOnDuplicate = false ): void;
 
     /**
      * update an existing row in the table
      */
-    function updateRow( array $data, mixed $identifier ): void;
+    function updateRow(ValidatedInput $data, mixed $identifier ): void;
 
     /**
      * drop a row identified by $identifier
@@ -154,7 +153,7 @@ interface TableIf
      * delete rows from table using the "delete column" as generated
      * by Table::get_form_definition
      */
-    function deleteRowsFromFv(array $data): void;
+    function deleteRowsFromFv(ValidatedInput $data): void;
 
     /**
      * get contents of the table and all referenced tables
@@ -179,7 +178,7 @@ interface TableIf
      * get \Form\Validator configuration for this table
      * if $skip_primary set, the primary key is not included (useful if new table entries are to be added)
      */
-    function getFormValidation( bool $skip_auto_increment = false, bool $as_array = false, $skip = [] ): \getoma\dbfe\Form\Validator\Profile;
+    function getFormValidation( bool $skip_auto_increment = false, bool $as_array = false, $skip = [] ): array;
 
     /**
      * whether referenced tables shall be encapsulated into <fieldset> at form output

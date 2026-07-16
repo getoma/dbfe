@@ -3,11 +3,12 @@
 namespace getoma\dbfe\Table\Column;
 
 use getoma\dbfe\Form\Printer\Configuration\ConfigurationList;
-use getoma\dbfe\Form\Printer\Configuration\Configuration;
 use getoma\dbfe\Util\FileHandler\FileHandlerIf;
 use getoma\dbfe\Util\HtmlElement\HtmlElement;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
-use getoma\dbfe\Form\Validator\Constraint\FastConstructors as fvc;
+use getoma\dbfe\Util\ValidatedInput;
+
+use Respect\Validation\Validator as Validator;
 
 class FileHandlerColumn extends PlainColumn implements FileHandlerColumnIf
 {
@@ -27,37 +28,38 @@ class FileHandlerColumn extends PlainColumn implements FileHandlerColumnIf
 
    /**
     * perform the upload of a file
-    * @param array $data
-    * @param string $rowid
     */
-   public function handleUpload( array &$data, $rowid): void
+   public function handleUpload(ValidatedInput $data, string|array|null $rowid): void
    {
       $colname = $this->getAfixedName();
+      $cur = $data->get($colname);
 
-      if( $this->support_delete && !empty($data[$colname]) )
+      if( $this->support_delete && $data->has($colname) )
       {
-         $del_cname = $this->getDeleteName();
+         $del = $data->get($this->getDeleteName());
 
-         if( is_array($data[$del_cname]) )
+         if( is_array($del) )
          {
-            $this->dropFiles( $data[$del_cname] );
-            $data[$colname] = array_diff( $data[$colname], $data[$del_cname] );
+            $this->dropFiles( $del );
+            $cur = array_diff($cur, $del);
+            $data->store($colname, $cur );
          }
-         else if( $data[$del_cname] === $data[$colname] )
+         else if( $del === $cur )
          {
-            $this->dropFiles( [ $data[$del_cname] ] );
-            $data[$colname] = null;
+            $this->dropFiles( [ $del ] );
+            $cur = null;
+            $data->store($colname, null);
          }
       }
 
-      if( is_array($data[$colname]) && $this->isPrimaryKey() )
+      if( is_array($cur) && $this->isPrimaryKey() )
       {
          /* only adding of new files allowed in this case */
-         $data[$colname] = array_merge($data[$colname], $this->fh->upload( $colname, [], [] ) );
+         $data->store($colname, array_merge($cur, $this->fh->upload( $colname, [], [] ) ));
       }
       else
       {
-         $data[$colname] = $this->fh->upload( $colname, $data[$colname], $rowid );
+         $data->store($colname, $this->fh->upload( $colname, $cur, $rowid ));
       }
    }
 
@@ -125,18 +127,15 @@ class FileHandlerColumn extends PlainColumn implements FileHandlerColumnIf
    }
 
    /**
-    * {@inheritDoc}
-    * @see \dbfe\PlainColumn::getValidatorConfig()
     */
-   public function getValidatorConfig(bool $as_array = false): \getoma\dbfe\Form\Validator\Profile
+   public function getValidatorConfig(bool $as_array = false, bool $optional = false): Validator
    {
       $result = parent::getValidatorConfig( $as_array );
 
-      if( isset($result) && $this->support_delete )
+      if( $this->support_delete )
       {
          $name = $this->getAfixedName() . '_del';
-         $result->optional[] = $name;
-         $result->constraints[$name] = fvc::Integer(0);
+         $result = Validator::allOf( $result, Validator::key( $name, Validator::intVal()->not(Validator::negative()), false ) );
       }
 
       return $result;

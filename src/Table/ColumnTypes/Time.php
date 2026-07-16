@@ -2,9 +2,8 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
-use getoma\dbfe\Form\Validator\Constraint\ConstraintIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
-use getoma\dbfe\Form\Validator\Constraint\FastConstructors as fvc;
+use Respect\Validation\Validator as V;
 
 /**
  * Handle db column Time type
@@ -16,8 +15,8 @@ class Time extends Type
       return [ 'type' => 'time' ];
    }
 
-   public function getConstraint(): ConstraintIf
+   public function getConstraint(): V
    {
-      return fvc::Time();
+      return V::time();
    }
 }

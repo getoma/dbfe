@@ -11,41 +11,19 @@ class Printer extends Container
 {
    protected $htmlDef = [ 'method' => 'post' ];
 
-   private static $FormValidatorKeys = [ 'data' => 'values', 'msg' => 'errmsg', 'is_valid' => 'invalid'];
-
    protected function getInfo()
    {
       return [ 'tag' => 'form', 'prefix' => 'Form'];
    }
 
    /**
-    * @param Printer\Configuration $cfg
+    * @param \getoma\dbfe\Form\Printer\Configuration\Configuration $cfg
     */
-   function __construct( Configuration\Configuration $cfg )
+   function __construct( \getoma\dbfe\Form\Printer\Configuration\Configuration $cfg )
    {
       /* create the ID manager */
       $cfg['idmanager'] = new IdManager();
       $cfg['fscollect'] = new StringCollector();
-
-      /* initialize values/errmsg/valid if not given */
-      foreach( self::$FormValidatorKeys as $fvKey => $key )
-      {
-         /* preset to empty array */
-         if( !isset($cfg[$key]) ) $cfg[$key] = [];
-         /* copy FormValidator content */
-         if( isset($cfg['FormValidator']) )
-         {
-            $cfg[$key] = array_merge($cfg[$key], $cfg['FormValidator']->$fvKey);
-         }
-      }
-      /* logic of IsValid/invalid has to be inverted ==> all unregistered fields are valid */
-      foreach( $cfg['invalid'] as &$val )
-      {
-         $val = !$val;
-      }
-
-      /* remove FormValidator from data, it shall not be further inherited */
-      unset($cfg['FormValidator']);
 
       /* preset the inherited parameters if they do not exist */
       foreach( static::$inherit as $key )

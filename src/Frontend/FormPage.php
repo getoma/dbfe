@@ -3,14 +3,18 @@
 namespace getoma\dbfe\Frontend;
 
 use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
+use getoma\dbfe\Util\ValidatedInput;
+use Respect\Validation\Exceptions\NestedValidationException;
+use Respect\Validation\Validator as V;
 
 /**
  * base class to implement a form page to manipulate the database contents
  */
 abstract class FormPage extends PlainPage
 {
-   protected ?\getoma\dbfe\Form\Validator\Validator $m_fv = null;
-   protected ?bool $m_input_valid = null;
+   protected ?ValidatedInput $m_input = null;
+   protected array $m_input_errors;
+   protected ?array $m_received_input = null;
 
    /******************************************************
     * PROTECTED MEMBER VARIABLES, USED BY DERIVED CLASSES
@@ -22,9 +26,11 @@ abstract class FormPage extends PlainPage
     ******************************************************/
 
    /**
-    * return content of Form\Validator definition
+      * return a list of respect validators keyed by request field name.
+      *
+      * @return array<string, \Respect\Validation\Validator>
     */
-   abstract protected function getValidatorConfig(): \getoma\dbfe\Form\Validator\Profile;
+      abstract protected function getValidatorConfig(): array;
 
    /**
     * process the validated data in $this->fv
@@ -43,6 +49,15 @@ abstract class FormPage extends PlainPage
     */
    abstract protected function getFormDefinition(array $values): ConfigurationListIf;
 
+   /**
+    * set the error message - also in intput errors array
+    */
+   protected function setErrorMessage(string $err): void
+   {
+      parent::setErrorMessage($err);
+      $this->m_input_errors['_global_'] = $err;
+   }
+
    /******************************************************
     * interface
     ******************************************************/
@@ -53,16 +68,17 @@ abstract class FormPage extends PlainPage
     */
    public function output(): \getoma\dbfe\Util\HtmlElement\HtmlElementIf
    {
-      $values = $this->getData();
+      $values = $this->m_received_input ?: $this->getData();
 
       $form_cfg = new \getoma\dbfe\Form\Printer\Configuration\Configuration(
          array_merge(
          [
-            'FormValidator' => $this->m_fv,
-            'values' => ( ($this->m_input_valid !== false)? $values : null ),
-            'name' => $this->getName(),
-            'accept-charset' => 'UTF-8',
+            'values'  => $values,
+            'errmsg'  => $this->m_input_errors,
+            'invalid' => array_fill_keys(array_keys($this->m_input_errors), true),
+            'name'    => $this->getName(),
             'content' => $this->getFormDefinition($values),
+            'accept-charset' => 'UTF-8',
          ],
          $this->m_formparams
          ) );
@@ -76,31 +92,36 @@ abstract class FormPage extends PlainPage
 
    public function input(): ?bool
    {
-      if( isset( $this->m_input_valid ) ) return $this->m_input_valid;
+      if( isset($this->m_input_errors) ) return !$this->m_input_errors;
 
       if( ($_SERVER['REQUEST_METHOD'] === 'POST') )
       {
-         /* create the validation profile */
-         $validation = $this->getValidatorConfig();
+         $validators = $this->getValidatorConfig();
+         $this->m_received_input = $this->normalizeInput( $_REQUEST );
+         $this->m_input_errors = [];
 
-         if( is_array($validation) )
+         foreach( $validators as $field => $validator )
          {
-            $validation = new \getoma\dbfe\Form\Validator\Profile($validation);
+            if( !($validator instanceof V) )
+            {
+               throw new \LogicException( "validator for '$field' must implement Respect\\Validation\\Validator" );
+            }
+
+            try
+            {
+               $validator->assert( $this->m_received_input );
+            }
+            catch( NestedValidationException $e )
+            {
+               $this->m_input_errors += $e->getMessages();
+            }
          }
 
-         $validation->merge([ 'globfilters' => [ 'trim' ],
-                              'msgs'        => [ 'format'      => $this->getLabelHdl()->get('Error',   'form') . ': %s',
-                                                 'missing'     => $this->getLabelHdl()->get('missing', 'form'),
-                                                 'invalid'     => $this->getLabelHdl()->get('invalid', 'form'),
-                                                 'constraints' => []               ]
-                            ]);
-
-         /* create the form validator */
-         $this->m_fv = new \getoma\dbfe\Form\Validator\Validator( $validation );
-
-         /* check the input */
-         if( $this->m_input_valid = $this->m_fv->check() )
+         if( !$this->m_input_errors )
          {
+            $validated = $this->postProcessInput( $this->m_received_input );
+            $this->m_input = new ValidatedInput( $validated );
+
             try /* store data */
             {
                $this->getDbh()->beginTransaction();
@@ -111,25 +132,63 @@ abstract class FormPage extends PlainPage
 
                $this->getDbh()->commit(); /* commit all changes */
 
-               /* delete FormValidator object, whole form shall be restored from DB */
-               $this->m_fv = null;
+               $this->m_received_input = null; /* clean original input data */
             }
             catch( \RuntimeException $e )
             {
                /* an error occurred during updating the database */
                $this->getDbh()->rollBack();
-               $this->m_input_valid = false;
                $this->setErrorMessage( $e->getMessage() );
             }
             catch( \Exception $e )
             {
                /* an error occurred during updating the database */
                $this->getDbh()->rollBack();
-               $this->m_input_valid = false;
                $this->setErrorMessage( $e->getMessage() . $e->getTraceAsString() );
             }
          }
+
+         return empty($this->m_input_errors);
       }
-      return $this->m_input_valid;
+      else
+      {
+         $this->m_input_errors = [];
+         return null;
+      }
+   }
+
+   /**
+    * normalize raw request input before validation.
+    */
+   protected function normalizeInput( array $data ): array
+   {
+      foreach( $data as &$value )
+      {
+         if( is_array( $value ) )
+         {
+            while( (count( $value ) > 0) && ($value[count($value)-1] === '') )
+            {
+               array_pop( $value );
+            }
+         }
+      }
+
+      return $data;
+   }
+
+   /**
+    * post-process validated input before storage.
+    */
+   protected function postProcessInput( array $data ): array
+   {
+      array_walk_recursive( $data, function( &$value ): void
+      {
+         if( is_string( $value ) )
+         {
+            $value = trim( $value );
+         }
+      } );
+
+      return $data;
    }
 }

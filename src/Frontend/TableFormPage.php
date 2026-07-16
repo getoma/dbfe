@@ -200,7 +200,7 @@ abstract class TableFormPage extends FormPage
    /**
     * return content of Form\Validator definition
     */
-   protected function getValidatorConfig(): \getoma\dbfe\Form\Validator\Profile
+   protected function getValidatorConfig(): array
    {
       return $this->getTable()->getFormValidation( !$this->m_as_array&&($this->m_entry_id === 0), $this->m_as_array );
    }
@@ -212,17 +212,17 @@ abstract class TableFormPage extends FormPage
    {
       if( $this->m_as_array )
       {
-         $this->getTable()->insertData( $this->m_fv->filtered, true );
-         $this->getTable()->deleteRowsFromFv($this->m_fv->filtered);
+         $this->getTable()->insertData( $this->m_input, true );
+         $this->getTable()->deleteRowsFromFv($this->m_input);
       }
       else if( $this->m_entry_id === 0 )
       {
-         $this->getTable()->insertData( $this->m_fv->filtered );
+         $this->getTable()->insertData( $this->m_input );
          $this->redirectTo( $this->getTable()->lastInsertId() );
       }
       else
       {
-         $this->getTable()->updateRow( $this->m_fv->filtered, $this->m_entry_id );
+         $this->getTable()->updateRow( $this->m_input, $this->m_entry_id );
       }
    }
 
@@ -455,33 +455,29 @@ abstract class TableFormPage extends FormPage
                $this->getDbh()->beginTransaction();
                $this->getTable()->dropRow( $this->m_entry_id );
                $this->getDbh()->commit(); /* commit all changes */
-               $this->m_input_valid = true;
             }
             catch( \RuntimeException $e )
             {
                $this->getDbh()->rollBack();
                $this->setErrorMessage( $e->getMessage() );
-               $this->m_input_valid = false;
             }
             catch( \Exception $e )
             {
                $this->getDbh()->rollBack();
                $this->setErrorMessage( $e->getMessage() . $e->getTraceAsString() );
-               $this->m_input_valid = false;
             }
          }
          else
          {
-            $this->m_input_valid = false;
             $this->setErrorMessage( 'Delete entry not allowed' );
          }
          $this->m_entry_id = null;
+         return empty($this->m_input_errors);
       }
       else
       {
-         parent::input();
+         return parent::input();
       }
-      return $this->m_input_valid;
    }
 
    /**

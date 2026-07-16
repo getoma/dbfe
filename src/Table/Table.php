@@ -15,9 +15,11 @@ use getoma\dbfe\Util\Exception\DatabaseError;
 use getoma\dbfe\Util\Exception\DatabaseUpdateError;
 use getoma\dbfe\Util\FileHandler\FileHandlerIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
+use getoma\dbfe\Util\ValidatedInput;
 
 use Aura\SqlQuery\Common\SelectInterface;
 use Aura\SqlQuery\QueryFactory;
+use Respect\Validation\Validator;
 
 class Table implements TableIf
 {
@@ -369,7 +371,10 @@ class Table implements TableIf
       return $this->last_insert_id;
    }
 
-   public function insertData( array $data, bool $updateOnDuplicate = false ): void
+   /**
+    * insert data into the table
+    */
+   public function insertData(ValidatedInput $data, bool $updateOnDuplicate = false): void
    {
       /* get all non-skipped rows */
       $col_list = array_filter( $this->getColumns(), function($c) { return !$c->doSkip(); } );
@@ -426,8 +431,8 @@ class Table implements TableIf
       $data_as_array = false; // check whether it's array data at all
       foreach( $col_list as $colname => $col ) /** @var PlainColumn $col */
       {
-         $field_name = $col->getAfixedName();
-         if( is_array($data[$field_name]) )
+         $field_data = $data->get($col->getAfixedName());
+         if( is_array($field_data) )
          {
             if( ($col->getType() === 'Boolean') && get_class($col) === PlainColumn::class )
             {
@@ -439,27 +444,27 @@ class Table implements TableIf
                   $datasets[$i][$colname] = 0;
                }
 
-               for( $i = 0; $i < count($data[$field_name]); ++$i )
+               for( $i = 0; $i < count($field_data); ++$i )
                {
-                  $datasets[ $data[$field_name][$i]-1 ][$colname] = 1;
+                  $datasets[ $field_data[$i]-1 ][$colname] = 1;
                }
             }
             else
             {
                /* copy the input data into the corresponding row of $refdata */
-               for( $i = 0; $i < count($data[$field_name]); ++$i )
+               for( $i = 0; $i < count($field_data); ++$i )
                {
-                  $datasets[$i][$colname] = $data[$field_name][$i]??$col->getDefault();
+                  $datasets[$i][$colname] = $field_data[$i]??$col->getDefault();
                }
             }
 
             $data_as_array = true;
          }
-         else if( isset($data[$field_name]) )
+         else //if( isset($field_data) )
          {
-            $data_single[$colname] = $data[$field_name]??$col->getDefault();
+            $data_single[$colname] = $field_data ?? $col->getDefault();
          }
-         else
+         //else
          {
             /* missing in input */
          }
@@ -502,7 +507,7 @@ class Table implements TableIf
          $dataset = [];
          foreach( $col_list as $colname => $col )
          {
-            $dataset[$colname] = $row[$colname]??$data_single[$colname]??$col->getDefault();
+            $dataset[$colname] = $row[$colname]??$data_single[$colname]??null?:$col->getDefault();
          }
 
          if( $updateOnDuplicate )
@@ -544,8 +549,8 @@ class Table implements TableIf
             $field_name = $idcol->getAfixedName();
             $this->last_insert_id = $this->dbh->lastInsertId();
 
-            if( is_array($data[$field_name]) ) $data[$field_name][] = $this->last_insert_id;
-            else                               $data[$field_name]   = $this->last_insert_id;
+            if( $data->is_array($field_name) ) $data->push( $field_name, $this->last_insert_id);
+            else                               $data->store($field_name, $this->last_insert_id);
          }
       }
 
@@ -555,7 +560,7 @@ class Table implements TableIf
    /**
     * update an existing row in the table
     */
-   public function updateRow( array $data, mixed $identifier ): void
+   public function updateRow( ValidatedInput $data, mixed $identifier ): void
    {
       $idcols = [];
       /* pre-process identifier */
@@ -599,7 +604,7 @@ class Table implements TableIf
       /* store the data */
       $stmt = $this->dbh->prepare( $query->getStatement() );
       /** @var PlainColumn $col */
-      $args = array_map( fn($col) => $this->filter[$col->getName()]??$data[$col->getAfixedName()]??null,
+      $args = array_map( fn($col) => $this->filter[$col->getName()]??$data->get_scalar($col->getAfixedName())?:$col->getDefault(),
                          $idcols + $col_list);
 
       if( !$stmt->execute( $args ) ) throw new DatabaseUpdateError( $stmt->$stmt->errorInfo()[2] );
@@ -706,20 +711,20 @@ class Table implements TableIf
    /**
     *
     */
-   protected function updateReferencedTables( array $data ): void
+   protected function updateReferencedTables(ValidatedInput $data): void
    {
       foreach( $this->getExternalReferences() as $ref )
       {
          // copy the link to the main table row to the referenced data
          $colname    = PlainColumn::afixedName( $ref->column, $ref->table->getName() );
          $refcolname = PlainColumn::afixedName( $ref->refcolumn, $this->getName() );
-         $data[$colname] = $data[$refcolname];
+         $data->store($colname, $data->get_scalar($refcolname));
 
          /* check for 1:1 references whether it is to be set at all */
          $sel_name = $ref->getSelectionName();
-         if( !is_null($sel_name) && !$data[$sel_name] )
+         if( !is_null($sel_name) && !$data->get_scalar($sel_name) )
          {
-            $ref->table->dropRow($data[$refcolname]);
+            $ref->table->dropRow($data->get_scalar($refcolname));
          }
          else
          {
@@ -739,28 +744,28 @@ class Table implements TableIf
     * delete rows from table using the "delete column" as generated by Form\Printer
     * by Table::get_form_definition
     */
-   public function deleteRowsFromFv(array $data): void
+   public function deleteRowsFromFv(ValidatedInput $data): void
    {
       $del_data       = [];
       $del_id_columns = array_keys($this->getPrimaryKey());
-      foreach( $data[static::getDeleteColName($this->getName())] as $idx )
+      foreach( $data->get_array(static::getDeleteColName($this->getName())) as $idx )
       {
          /* construct the row identifier */
          $identifier = [];
          foreach( $del_id_columns as $idcolname )
          {
-            $prefixed_id_name = PlainColumn::afixedName($idcolname, $this->getName());
+            $id_data = $data->get(PlainColumn::afixedName($idcolname, $this->getName()));
             if( isset($this->filter[$idcolname]) )
             {
                $identifier[$idcolname] = $this->filter[$idcolname];
             }
-            else if( is_array($data[$prefixed_id_name]) && isset($data[$prefixed_id_name][$idx-1]) )
+            else if( is_array($id_data) && isset($id_data[$idx-1]) )
             {
-               $identifier[$idcolname] = $data[$prefixed_id_name][$idx-1];
+               $identifier[$idcolname] = $id_data[$idx-1];
             }
-            else if( is_scalar($data[$prefixed_id_name]) )
+            else if( is_scalar($id_data) )
             {
-               $identifier[$idcolname] = $data[$prefixed_id_name];
+               $identifier[$idcolname] = $id_data;
             }
             else
             {
@@ -776,15 +781,15 @@ class Table implements TableIf
    /**
     * handle any file uploads and update corresponding fields
     * in $data
-    * @param array $data in/out
+    * @param ValidatedInput $data in/out
     */
-   protected function handleFileUploads(array &$data): void
+   protected function handleFileUploads(ValidatedInput $data): void
    {
       if( empty($this->m_filehdl) ) return;
 
       /* determine a row identifier if possible */
       $name_col = $this->getNameColumn();
-      $rowid = isset($name_col)? $data[$name_col->getAfixedName()] : null;
+      $rowid = isset($name_col)? $data->get($name_col->getAfixedName()) : null;
 
       foreach ($this->m_filehdl as $fcol)
       {
@@ -1068,54 +1073,50 @@ class Table implements TableIf
    }
 
    /**
-    * get \Form\Validator configuration for this table
+    * get validator configuration for this table
     * if $skip_primary set, the primary key is not included (useful if new table
     * entries are to be added)
     * allow to provide customized constraints via dedicated parameter
     */
-   public function getFormValidation( bool $optional_id = false, bool $as_array = false, $skip = [] ): \getoma\dbfe\Form\Validator\Profile
+   public function getFormValidation( bool $optional_id = false, bool $as_array = false, $skip = [] ): array
    {
-      $result = new \getoma\dbfe\Form\Validator\Profile();
+      $result = [];
 
+      $content_columns = [];  // memorize all content columns for array input validation
+      $required_columns = []; // memorize all required columns for array input validation
       foreach( $this->getColumns() as $column )
       {
          // check for explicitly skipped columns
          if( in_array( $column->getName(), $skip) ) continue;
          if( $column->doSkip() ) continue;
          // integrate validator configuration for this column
-         $colval = $column->getValidatorConfig($as_array);
-         // downgrade id column to optional if requested, set empty default value
-         if( $optional_id && $column->isAutoIncrement() )
+         $col_name = $column->getAfixedName();
+         $result += [ $col_name => $column->getValidatorConfig($as_array, $optional_id && $column->isAutoIncrement()) ];
+         // store back this name for "required array entries" check
+         if( $as_array && !$column->isAutoIncrement() )
          {
-            $colval->optional = $colval->required;
-            $colval->required = [];
+            $content_columns[] = $col_name;
+            if( $column->isRequired() ) $required_columns[] = $col_name;
          }
-         // merge column definition
-         $result->merge( $colval );
       }
 
-      if( $as_array )
+      foreach( $required_columns as $validated )
       {
-         /* for arrays, the required columns form a dependency group */
-         $result->dependencies[] = $result->required;
-         $result->required = [];
-
-         /* also forsee the row delete column */
-         $result->optional[] = static::getDeleteColName($this->getName(), true);
+         /* add a validator that mandates the same number of entries for each required array entry */
+         $result[$validated] = Validator::allOf(
+            $result[$validated],
+            Validator::callback(
+               static fn(array $input) => !self::findMissingMandatoryValues($input, $content_columns, [$validated], true)
+            )->setTemplate('Column need to be set for each row.')
+         )
+         ->setName($validated);
       }
 
       /* load validations for referenced tables */
       foreach( $this->getExternalReferences() as $extref )
       {
-         $ref_as_array = $extref->isOne2Many()? true : $as_array;
-         $result->merge( $extref->table->getFormValidation( false, $ref_as_array, [ $extref->refcolumn ] ) );
-
-         /* add optional sub table selections */
-         $sel_name = $extref->getSelectionName();
-         if( !is_null($sel_name) )
-         {
-            $result->optional[] = $sel_name;
-         }
+         $ref_as_array = $as_array || $extref->isOne2Many();
+         $result += $extref->table->getFormValidation( false, $ref_as_array, [ $extref->refcolumn ] );
       }
 
       return $result;
@@ -1124,5 +1125,54 @@ class Table implements TableIf
    private static function getDeleteColName( string $tabname, $as_array = false ): string
    {
       return 'del' . $tabname . ($as_array? '[]' : '');
+   }
+
+   /**
+    * @return list<array{field: string, index: int}>
+    */
+   private static function findMissingMandatoryValues(array $input, array $knownFields, array $mandatoryFields, bool $failQuick = false): array
+   {
+      $isEmpty = static fn(mixed $value): bool =>
+         $value === null || (is_string($value) && trim($value) === '');
+
+      $lastUsedIndex = null;
+
+      foreach ($knownFields as $field)
+      {
+         $values = $input[$field] ?? [];
+
+         if (!is_array($values)) throw new \LogicException("input $field is not an array");
+
+         foreach ($values as $index => $value)
+         {
+            if (!$isEmpty($value))
+            {
+               $lastUsedIndex = max($lastUsedIndex??0, (int)$index);
+            }
+         }
+      }
+
+      if ($lastUsedIndex === null)
+      {
+         return [];
+      }
+
+      $missing = [];
+
+      for ($index = 0; $index <= $lastUsedIndex; ++$index)
+      {
+         foreach ($mandatoryFields as $field)
+         {
+            $values = $input[$field] ?? [];
+
+            if ( $isEmpty($values[$index]??null) )
+            {
+               $missing[] = [ 'field' => $field, 'index' => $index ];
+               if( $failQuick ) return $missing;
+            }
+         }
+      }
+
+      return $missing;
    }
 }

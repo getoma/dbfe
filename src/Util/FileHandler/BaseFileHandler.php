@@ -46,7 +46,9 @@ abstract class BaseFileHandler implements FileHandlerIf
             }
          }
 
-         $as_array = true;
+         $as_array    = true;
+         $old_value ??= [];
+         $rowid     ??= [];
       }
       else
       {
@@ -60,9 +62,8 @@ abstract class BaseFileHandler implements FileHandlerIf
 
       foreach( $file_info as &$file_entry )
       {
-         $prev_set = count($old_value);
-         $prev     = array_shift($old_value);
-         $id       = array_shift($rowid);
+         $prev = array_shift($old_value);
+         $id   = array_shift($rowid);
 
          if( $file_entry['error'] === UPLOAD_ERR_OK )
          {
@@ -78,7 +79,7 @@ abstract class BaseFileHandler implements FileHandlerIf
          else if( $file_entry['error'] === UPLOAD_ERR_NO_FILE )
          {
             /* no file was uploaded with this field */
-            if( $prev_set )
+            if( isset($prev) )
             {
                $result[] = $prev;
             }

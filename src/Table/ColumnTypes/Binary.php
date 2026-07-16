@@ -2,8 +2,8 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
-use getoma\dbfe\Form\Validator\Constraint\ConstraintIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
+use Respect\Validation\Validator as V;
 
 class Binary extends Type
 {
@@ -12,8 +12,8 @@ class Binary extends Type
       return [];
    }
 
-   public function getConstraint(): ?ConstraintIf
+   public function getConstraint(): V
    {
-      return null;
+      return V::scalarVal();
    }
 }

@@ -10,6 +10,7 @@ use getoma\dbfe\Util\FileHandler\FileHandlerIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
 
 use Aura\SqlQuery\Common\SelectInterface;
+use getoma\dbfe\Util\ValidatedInput;
 
 class View implements TableIf
 {
@@ -211,12 +212,12 @@ class View implements TableIf
       return $result;
    }
 
-   public function getFormValidation(bool $skip_auto_increment = false, bool $as_array = false, $skip = []): \getoma\dbfe\Form\Validator\Profile
+   public function getFormValidation(bool $skip_auto_increment = false, bool $as_array = false, $skip = []): array
    {
-      return new \getoma\dbfe\Form\Validator\Profile();
+      return [];
    }
 
-   public function insertData(array $data, bool $updateOnDuplicate = false): void
+   public function insertData(ValidatedInput $data, bool $updateOnDuplicate = false): void
    {
       /* nothing to do */
    }
@@ -231,7 +232,7 @@ class View implements TableIf
       return null;
    }
 
-   public function deleteRowsFromFv(array $data): void
+   public function deleteRowsFromFv(ValidatedInput $data): void
    {
       /* nothing to do */
    }
@@ -241,7 +242,7 @@ class View implements TableIf
       /* nothing to do */
    }
 
-   public function updateRow(array $data, mixed $identifier): void
+   public function updateRow(ValidatedInput $data, mixed $identifier): void
    {
       /* nothing to do */
    }
@@ -320,7 +321,7 @@ class ViewColumn implements ColumnIf
       $this->m_formProp += $prop;
    }
 
-   public function getValidatorConfig(bool $as_array = false): \getoma\dbfe\Form\Validator\Profile
+   public function getValidatorConfig(bool $as_array = false, bool $optional = false): \Respect\Validation\Validator
    {
       throw new \LogicException("validator config not supported for View Column");
    }
@@ -351,7 +352,7 @@ class ViewColumn implements ColumnIf
       return PlainColumn::afixedName($this->name, $this->view_name, false);
    }
 
-   public function setCustomConstraint(\getoma\dbfe\Form\Validator\Constraint\Constraint $constraint): void
+   public function setCustomConstraint(\Respect\Validation\Validator $constraint): void
    {
       // nothing to do
    }

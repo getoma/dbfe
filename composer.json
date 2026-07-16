@@ -10,6 +10,7 @@
     },
     "require": {
         "php": ">=8.4",
-        "aura/sqlquery": "^3.0"
+        "aura/sqlquery": "^3.0",
+        "respect/validation": "^2.4"
     }
 }

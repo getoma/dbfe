@@ -5,26 +5,26 @@ namespace getoma\dbfe\Table\Column;
 use getoma\dbfe\Form\Printer\Configuration\Configuration as fpc;
 use getoma\dbfe\Form\Printer\Configuration\ConfigurationIf;
 use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
-use getoma\dbfe\Form\Validator\Constraint\Constraint;
 use getoma\dbfe\Table\ColumnTypes\Type;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
+use Respect\Validation\Validator as Validator;
 
 /**
  * a plain db table column
  */
 class PlainColumn implements ColumnIf
 {
-   protected string  $name;
-   protected Type    $type;
-   protected string  $key;
-   protected string  $extra;
-   protected mixed   $default;
-   protected array   $formProp = [];
-   protected bool    $skip = false;
-   protected string  $column_spec = "%s";
-   protected ?Constraint $custom_constraint = null;
-   protected bool    $required = false;
-   protected bool    $fixed = false;
+   protected string    $name;
+   protected Type      $type;
+   protected string    $key;
+   protected string    $extra;
+   protected mixed     $default;
+   protected array     $formProp = [];
+   protected bool      $skip = false;
+   protected string    $column_spec = "%s";
+   protected Validator $custom_constraint;
+   protected bool      $required = false;
+   protected bool      $fixed = false;
 
    public function __construct(
       PlainColumn|array $structure,
@@ -64,7 +64,7 @@ class PlainColumn implements ColumnIf
    /**
     * add a custom constraint from the application
     */
-   public function setCustomConstraint( Constraint $constraint ): void
+   public function setCustomConstraint( Validator $constraint ): void
    {
       $this->custom_constraint = $constraint;
    }
@@ -130,7 +130,7 @@ class PlainColumn implements ColumnIf
     */
    public function isRequired(): bool
    {
-      return $this->required || (!$this->type->isNullOk() && !isset( $this->default ));
+      return $this->required || (!$this->type->isNullOk() && !isset($this->default));
    }
 
    /**
@@ -178,43 +178,25 @@ class PlainColumn implements ColumnIf
    /**
     * provide column specific form\validator configuration
     */
-   public function getValidatorConfig(bool $as_array = false): \getoma\dbfe\Form\Validator\Profile
+   public function getValidatorConfig(bool $as_array = false, bool $optional = false): Validator
    {
-      $result = new \getoma\dbfe\Form\Validator\Profile();
+      $name = $this->getAfixedName( false );
+      $constraint = $this->custom_constraint ?? $this->type->getConstraint();
 
-      $name = $this->getAfixedName();
-      $arr  = $as_array? '[]' : '';
+      $is_optional = $optional || (!$this->isRequired() && !$this->isAutoIncrement());
 
-      /* special case for array validation: auto_increment columns always "optional",
-       * to allow addition of new rows
-       */
-      if( $as_array && $this->isAutoIncrement() ) $result->optional[] = $name.$arr;
-      /* normal case: decide whether optional or required: */
-      else if( $this->isRequired() ) $result->required[] = $name.$arr;
-      else $result->optional[] = $name.$arr;
-
-      /* defaults */
-      $default = $this->getDefault();
-      if( isset( $default ) )
+      if( $is_optional )
       {
-         $result->defaults[$name] = $default;
+         $constraint = Validator::optional($constraint);
       }
 
-      /* constraints */
-      if( isset($this->custom_constraint) )
+      if( $as_array )
       {
-         $result->constraints[$name] = $this->custom_constraint;
-      }
-      else
-      {
-         $constraint = $this->type->getConstraint();
-         if( isset($constraint) )
-         {
-            $result->constraints[$name] = $constraint;
-         }
+         $constraint = Validator::arrayType()->each( $constraint );
       }
 
-      return $result;
+      // in case of "array" inputs, the key may also be missing entirly if the array has zero length
+      return Validator::key( $name, $constraint, !($is_optional || $as_array) );
    }
 
    /**

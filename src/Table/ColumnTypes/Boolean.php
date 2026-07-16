@@ -2,9 +2,8 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
-use getoma\dbfe\Form\Validator\Constraint\ConstraintIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
-use getoma\dbfe\Form\Validator\Constraint\FastConstructors as fvc;
+use Respect\Validation\Validator as V;
 
 /**
  * Handle db column boolean types:
@@ -18,18 +17,11 @@ class Boolean extends Type
       return [ 'type' => 'checkbox', 'value' => '1' ];
    }
 
-   public function getConstraint(): ConstraintIf
+   public function getConstraint(): V
    {
-      return fvc::Integer( 0 );
-   }
-
-   /**
-    *
-    * {@inheritdoc}
-    * @see Type::is_null_ok()
-    */
-   public function isNullOk(): bool
-   {
-      return false;
+      // accept any non-negative number as well.
+      // right now, checkboxes will contain their row number as value for array groups
+      // (handled in Table::getFormDefinition), to be cleaned up.
+      return V::anyOf(V::boolVal(), V::intVal()->not(V::negative()));
    }
 }

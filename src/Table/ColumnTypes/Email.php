@@ -2,9 +2,8 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
-use getoma\dbfe\Form\Validator\Constraint\ConstraintIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
-use getoma\dbfe\Form\Validator\Constraint\FastConstructors as fvc;
+use Respect\Validation\Validator as V;
 
 class Email extends Text
 {
@@ -15,8 +14,8 @@ class Email extends Text
       return $result;
    }
 
-   public function getConstraint(): ConstraintIf
+   public function getConstraint(): V
    {
-      return fvc::Email();
+      return V::email();
    }
 }

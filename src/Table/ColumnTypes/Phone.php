@@ -2,9 +2,8 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
-use getoma\dbfe\Form\Validator\Constraint\ConstraintIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
-use getoma\dbfe\Form\Validator\Constraint\FastConstructors as fvc;
+use Respect\Validation\Validator as V;
 
 class Phone extends Type
 {
@@ -13,8 +12,8 @@ class Phone extends Type
       return [ 'type' => 'tel' ];
    }
 
-   public function getConstraint(): ConstraintIf
+   public function getConstraint(): V
    {
-      return fvc::Telephone();
+      return V::phone();
    }
 }

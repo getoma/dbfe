@@ -2,8 +2,8 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
-use getoma\dbfe\Form\Validator\Constraint\ConstraintIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
+use Respect\Validation\Validator as V;
 
 /**
  * Handle db column text types:
@@ -11,16 +11,16 @@ use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
  */
 class Text extends Type
 {
-   protected $maxlen = null;
+   protected ?int $maxlen = null;
 
-   public function __construct(string $type, $null)
+   public function __construct(string $type, mixed $null)
    {
       parent::__construct( $type, $null );
 
       $matches = null;
       if( preg_match( "/char\\((\\d+)\\)/", $type, $matches ) )
       {
-         $this->maxlen = $matches[1];
+         $this->maxlen = (int)$matches[1];
       }
    }
 
@@ -45,8 +45,10 @@ class Text extends Type
       }
    }
 
-   public function getConstraint(): ?ConstraintIf
+   public function getConstraint(): V
    {
-      return null;
+      $rule = V::stringVal();
+      if( $this->maxlen ) $rule = $rule->length(max: $this->maxlen);
+      return $rule;
    }
 }

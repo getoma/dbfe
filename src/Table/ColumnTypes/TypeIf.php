@@ -2,8 +2,8 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
-use getoma\dbfe\Form\Validator\Constraint\ConstraintIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
+use Respect\Validation\Validator as Validator;
 
 interface TypeIf
 {
@@ -23,5 +23,5 @@ interface TypeIf
 
    /**
     */
-   public function getConstraint(): ?ConstraintIf;
+   public function getConstraint(): Validator;
 }

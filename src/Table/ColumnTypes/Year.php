@@ -2,9 +2,8 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
-use getoma\dbfe\Form\Validator\Constraint\ConstraintIf;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
-use getoma\dbfe\Form\Validator\Constraint\FastConstructors as fvc;
+use Respect\Validation\Validator as V;
 
 /**
  * Handle db column date type:
@@ -16,8 +15,8 @@ class Year extends Type
       return [ 'type' => 'Number', 'class' => 'InputYear', 'min' => 1900, 'step' => 1, 'max' => 9999 ];
    }
 
-   public function getConstraint(): ConstraintIf
+   public function getConstraint(): V
    {
-      return fvc::Integer(1900,9999);
+      return V::intVal()->between( 1900, 9999 );
    }
 }
