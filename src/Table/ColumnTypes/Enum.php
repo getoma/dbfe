@@ -2,7 +2,8 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
-use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
+use getoma\dbfe\Form\Generator\Node\NodeInterface;
+use getoma\dbfe\Form\Generator\Field\SelectField;
 use Respect\Validation\Validator as V;
 
 /**
@@ -26,14 +27,16 @@ class Enum extends Type
       }
    }
 
-   public function getFormAttributes(?LabelHandlerIf $lblHdl = null, string $prefix = ''): array
+   public function getFormNode(string $name, bool $required = false, bool $fixed = false, array $attributes = []): NodeInterface
    {
-      $values = array_map( function ($value) use ($lblHdl,$prefix)
-      {
-         return $lblHdl->get( $value, $prefix );
-      }, $this->values );
-
-      return [ 'type' => 'select', 'selection' => array_merge( [''=>'N/A'], $values ) ];
+      return new SelectField(
+         $name,
+         $this->values,
+         $attributes['disabled_keys'] ?? [],
+         $required,
+         $fixed,
+         $attributes,
+      );
    }
 
    public function getConstraint(): V

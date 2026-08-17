@@ -2,7 +2,7 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
-use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
+use getoma\dbfe\Form\Generator\Node\NodeInterface;
 use Respect\Validation\Validator as V;
 
 /**
@@ -10,9 +10,14 @@ use Respect\Validation\Validator as V;
  */
 class Date extends Type
 {
-   public function getFormAttributes(?LabelHandlerIf $lblHdl = null, string $prefix = ''): array
+   public function getFormNode(string $name, bool $required = false, bool $fixed = false, array $attributes = []): NodeInterface
    {
-      return [ 'type' => 'date' ];
+      return new \getoma\dbfe\Form\Generator\Field\DateField(
+         $name,
+         $required,
+         $fixed,
+         $attributes,
+      );
    }
 
    public function getConstraint(): V

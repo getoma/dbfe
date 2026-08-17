@@ -2,11 +2,9 @@
 
 namespace getoma\dbfe\Table\Column;
 
-use getoma\dbfe\Form\Printer\Configuration\Configuration;
-use getoma\dbfe\Form\Printer\Configuration\ConfigurationIf;
-use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
+use getoma\dbfe\Form\Generator\Field\SelectField;
+use getoma\dbfe\Form\Generator\Node\NodeInterface;
 use getoma\dbfe\Table\Table;
-use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
 use getoma\dbfe\Util\Exception\DatabaseStructureIssue;
 
 use Aura\SqlQuery\Common\SelectInterface;
@@ -40,7 +38,7 @@ class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
 
    /**
     */
-   public function getReferenceData( array $filter = [], bool $addNA = true ): array
+   public function getReferenceData( array $filter = [] ): array
    {
       if( !isset($this->query) )
       {
@@ -60,20 +58,10 @@ class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
       {
          $stmt = $this->dbh->prepare( $this->query );
          $stmt->execute($this->query->getBindValues());
-
          $refValues = [];
-         if( $addNA )
+         while( $row = $stmt->fetch(\PDO::FETCH_NUM) )
          {
-            $refValues[''] = "N/A";
-         }
-
-         // add the content of the referenced column to the selectable data
-         if( $stmt )
-         {
-            while( $row = $stmt->fetch( \PDO::FETCH_NUM ) )
-            {
-               $refValues[$row[0]] = $row[1];
-            }
+            $refValues[$row[0]] = $row[1];
          }
          return $refValues;
       }
@@ -111,22 +99,15 @@ class ReferenceColumn extends PlainColumn implements ReferenceColumnIf
       }
    }
 
-   /**
-    * get a form specification that can be used as input to Form\Printer
-    * A "Reference Column" is implemented by providing a select field which
-    * allows to select an entry of the reference column.
-    * The selectable values are taken from the "name column" of the other table.
-    */
-   public function getFormDefinition(LabelHandlerIf $lblHdl, array $data = [], bool $as_array = false ): ConfigurationIf|ConfigurationListIf
+   public function getFormGeneratorDefinition(): NodeInterface
    {
-      return new Configuration(
-         [ 'name'  => $this->getAfixedName($as_array)
-         , 'label' => $lblHdl->get( $this->getName(), $this->tablename )
-         , 'required' => ($this->isRequired() && !$as_array)
-         , 'fixed'    => $this->isFixed()
-         , 'type'  => 'select', 'selection' => $this->getReferenceData()
-         , 'disabled_keys' => $this->getDisabledKeys()
-         ] );
+      return new SelectField(
+         $this->getAffixedName(),
+         $this->getReferenceData(),
+         $this->getDisabledKeys(),
+         $this->isRequired(),
+         $this->isFixed(),
+      );
    }
 
    /**

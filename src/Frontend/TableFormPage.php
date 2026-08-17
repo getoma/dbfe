@@ -2,7 +2,8 @@
 
 namespace getoma\dbfe\Frontend;
 
-use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
+use getoma\dbfe\Form\Generator\InputMask;
+use getoma\dbfe\Form\Generator\Node\CompositeNode;
 use getoma\dbfe\Table\Column\ReferenceColumn;
 use getoma\dbfe\Table\Factory;
 use getoma\dbfe\Table\Table;
@@ -169,7 +170,6 @@ abstract class TableFormPage extends FormPage
                $this->m_table_list[$view_name] = $this->loadView( $view_name, $spec);
             }
          }
-         $this->getTable()->useFieldsetsForReferences(true);
       }
       $this->configureTables();
    }
@@ -237,25 +237,16 @@ abstract class TableFormPage extends FormPage
       return $this->m_data;
    }
 
-   /**
-    */
-   protected function getFormDefinition( array $values ): ConfigurationListIf
+   protected function getFormGeneratorDefinition(): CompositeNode
    {
-      $formopt = [
-         'as_array' => $this->m_as_array,
-         'groups' => $this->configureFormGroups(),
-         'required_only' => ($this->m_entry_id === 0)? $this->m_required_only_on_new_entry : false
-      ];
-      $formdef   = $this->getTable()->getFormDefinition( $this->getLabelHdl(), $values, $formopt );
-      $formdef[] = [ 'type'    => 'buttonbox', 'class' => 'buttonbox'
-                   , 'buttons' => [ 'submit' => [ 'save' => $this->getLabelHdl()->get('save') ] ] ];
+      /** @var TableIf $table */
+      $table = $this->getTable();
 
-      if( $this->getTable()->hasUploads() )
-      {
-         $this->m_formparams['enctype'] = 'multipart/form-data';
-      }
-
-      return $formdef;
+      return $table->getFormGeneratorDefinition(
+         as_array: $this->m_as_array,
+         groups: $this->configureFormGroups(),
+         required_only: ($this->m_entry_id === 0)? $this->m_required_only_on_new_entry : false,
+      );
    }
 
    /**
@@ -429,13 +420,22 @@ abstract class TableFormPage extends FormPage
       }
       else
       {
-         $html = parent::output();
          $backlink = [ 'p', [ 'id' => 'backlink' ], [
             [ 'a', ['href' => $this->selflink() ], [ $this->getLabelHdl()->get('back') ] ]
          ]];
 
-         return new HtmlElement('', content: [ $html, $backlink ] );
+         return new HtmlElement('', content: [ $backlink ] );
       }
+   }
+
+   public function getInputMask(): ?InputMask
+   {
+      if( is_null($this->m_entry_id) )
+      {
+         return null;
+      }
+
+      return parent::getInputMask();
    }
 
    public function input(): ?bool

@@ -34,13 +34,11 @@ class Factory
       {
          if( !isset( $this->tables[$table] ) )
          {
-            $table_struc = $this->dbh->query( 'explain ' . $table )->fetchAll();
             $options = Table::NO_REFERENCES; // link references in a separate step to avoid endless recursion in case there are cyclic references
-            if( $link_references )                 $options |= Table::BIDIRECTIONAL_REFERENCES;
+            if( $link_references )               $options |= Table::BIDIRECTIONAL_REFERENCES;
             if( !$this->heuristic_column_types ) $options |= Table::NO_HEURISTIC_TYPES;
-            $this->tables[$table] = new Table( $this, $this->dbh, $this->query_factory, $table, $table_struc, $options );
-            $visited[] = $table; // note down this table as visited in the current stacking
-            $this->tables[$table]->linkReferences($this, $options, $visited);
+            $this->tables[$table] = new Table( $this, $this->dbh, $this->query_factory, $table, $options );
+            $this->tables[$table]->linkReferences($this, $options, array_merge($visited, [$table]));
          }
          return $this->tables[$table];
       }

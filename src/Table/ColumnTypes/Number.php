@@ -2,7 +2,8 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
-use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
+use getoma\dbfe\Form\Generator\Node\NodeInterface;
+use getoma\dbfe\Form\Generator\Field\NumberField;
 use Respect\Validation\Validator as V;
 
 /**
@@ -11,12 +12,9 @@ use Respect\Validation\Validator as V;
  */
 class Number extends Type
 {
-   /** @var Number */
-   protected $min = null;
-   /** @var Number */
-   protected $max = null;
-   /** @var bool */
-   protected $is_float = false;
+   protected null|int|float $min = null;
+   protected null|int|float $max = null;
+   protected bool $is_float = false;
 
    public function __construct(string $type, $null)
    {
@@ -121,26 +119,17 @@ class Number extends Type
       return false;
    }
 
-   public function getFormAttributes(?LabelHandlerIf $lblHdl = null, string $prefix = ''): array
+   public function getFormNode(string $name, bool $required = false, bool $fixed = false, array $attributes = []): NodeInterface
    {
-      $result = [ 'type' => 'number' ];
-
-      if( isset( $this->min ) )
-      {
-         $result['min'] = $this->min;
-      }
-
-      if( isset( $this->max ) )
-      {
-         $result['max'] = $this->max;
-      }
-
-      if( !$this->is_float )
-      {
-         $result['step'] = 1;
-      }
-
-      return $result;
+      return new NumberField(
+         $name,
+         $required,
+         $fixed,
+         $this->min,
+         $this->max,
+         $this->is_float? null : 1,
+         $attributes,
+      );
    }
 
    public function getConstraint(): V

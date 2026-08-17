@@ -2,9 +2,13 @@
 
 namespace getoma\dbfe\Table;
 
-use getoma\dbfe\Form\Printer\Configuration\ConfigurationIf;
-use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
-use getoma\dbfe\Table\Column\DispType;
+use getoma\dbfe\Form\Generator\Node\ArrayGroupNode;
+use getoma\dbfe\Form\Generator\Node\CompositeNode;
+use getoma\dbfe\Form\Generator\Node\GroupNode;
+use getoma\dbfe\Form\Generator\Node\TransparentGroup;
+use getoma\dbfe\Form\Generator\Field\HiddenField;
+use getoma\dbfe\Form\Generator\Field\BooleanField;
+use getoma\dbfe\Table\Column\FileContentType;
 use getoma\dbfe\Table\Column\FileHandlerColumn;
 use getoma\dbfe\Table\Column\PlainColumn;
 use getoma\dbfe\Table\Column\ColumnIf;
@@ -14,7 +18,6 @@ use getoma\dbfe\Table\Column\SelectionColumn;
 use getoma\dbfe\Util\Exception\DatabaseError;
 use getoma\dbfe\Util\Exception\DatabaseUpdateError;
 use getoma\dbfe\Util\FileHandler\FileHandlerIf;
-use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
 use getoma\dbfe\Util\ValidatedInput;
 
 use Aura\SqlQuery\Common\SelectInterface;
@@ -44,9 +47,6 @@ class Table implements TableIf
    /** @var string[] */
    protected array $filter = [];
 
-   /** @var bool */
-   protected bool $fieldsets_for_references = false;
-
    /** @var ?int */
    protected ?int $last_insert_id = null;
 
@@ -54,7 +54,6 @@ class Table implements TableIf
     * @param Factory $factory
     * @param \PDO    $dbh
     * @param string $name
-    * @param array $structure
     * @param int   $options any of BIDIRECTIONAL_REFERENCES | NO_HEURISTIC_TYPES | NO_REFERENCES
     * @throws \Exception
     */
@@ -63,10 +62,11 @@ class Table implements TableIf
       protected readonly \PDO $dbh,
       protected readonly QueryFactory $query_factory,
       protected readonly string $name,
-      array $structure,
       int $options = 0
    )
    {
+      $structure = $this->dbh->query('explain ' . $name)->fetchAll();
+
       /* traverse through all columns of the table and process them */
       foreach( $structure as $col )
       {
@@ -125,25 +125,15 @@ class Table implements TableIf
    }
 
    /**
-    * {@inheritDoc}
-    * @see \dbfe\TableIf::set_use_fieldset_for_references()
-    */
-   public function useFieldsetsForReferences( ?bool $status = null ): bool
-   {
-      if(isset($status)) $this->fieldsets_for_references = $status;
-      return $this->fieldsets_for_references;
-   }
-
-   /**
     * register a filehandler for a certain column
     * @param string $column
     * @param FileHandlerIf $fh
     */
-   public function setFilehandler( string $column, FileHandlerIf $fh, DispType $display_type = DispType::link, bool $support_delete = false ): void
+   public function setFilehandler( string $column, FileHandlerIf $fh, FileContentType $content_type = FileContentType::Opaque, bool $support_delete = false ): void
    {
       if( isset( $this->m_columns[$column] ) )
       {
-         $col = new FileHandlerColumn( $this->m_columns[$column], $this->getName(), $fh, $display_type, $support_delete );
+         $col = new FileHandlerColumn( $this->m_columns[$column], $this->getName(), $fh, $content_type, $support_delete );
          $this->m_filehdl[$column] = $col;
          $this->m_columns[$column] = $col;
       }
@@ -374,7 +364,7 @@ class Table implements TableIf
    /**
     * insert data into the table
     */
-   public function insertData(ValidatedInput $data, bool $updateOnDuplicate = false): void
+   public function insertData(ValidatedInput $data, bool $updateOnDuplicate = false, array $reference_filter = []): void
    {
       /* get all non-skipped rows */
       $col_list = array_filter( $this->getColumns(), function($c) { return !$c->doSkip(); } );
@@ -402,7 +392,8 @@ class Table implements TableIf
              */
             $uquery = $this->query_factory->newUpdate()
                ->table($this->getName())
-               ->cols( array_map( fn($c) => $c->getName(),  $ucol_list) );
+               ->cols( array_filter( array_map( fn($c) => $c->getName(), $ucol_list),
+                       fn($c) => !array_key_exists($c, $reference_filter) ) );
          }
 
          $squery = $this->query_factory->newSelect()
@@ -428,61 +419,38 @@ class Table implements TableIf
        */
       $datasets      = []; // array of array of several rows of data
       $data_single   = []; // array of single-row-data
-      $data_as_array = false; // check whether it's array data at all
       foreach( $col_list as $colname => $col ) /** @var PlainColumn $col */
       {
-         $field_data = $data->get($col->getAfixedName());
+         $field_data = $data->get($col->getAffixedName());
          if( is_array($field_data) )
          {
-            if( ($col->getType() === 'Boolean') && get_class($col) === PlainColumn::class )
+            /* copy the input data into the corresponding row of $refdata */
+            for( $i = 0; $i < count($field_data); ++$i )
             {
-               /* special handling for boolean (handled via checkboxes in PlainColumn)
-                * data fields contain the row numbers which are to be set
-                */
-               for( $i = 0; $i < count($datasets); ++$i )
-               {
-                  $datasets[$i][$colname] = 0;
-               }
-
-               for( $i = 0; $i < count($field_data); ++$i )
-               {
-                  $datasets[ $field_data[$i]-1 ][$colname] = 1;
-               }
+               $datasets[$i][$colname] = $field_data[$i]??$col->getDefault();
             }
-            else
-            {
-               /* copy the input data into the corresponding row of $refdata */
-               for( $i = 0; $i < count($field_data); ++$i )
-               {
-                  $datasets[$i][$colname] = $field_data[$i]??$col->getDefault();
-               }
-            }
-
-            $data_as_array = true;
          }
-         else //if( isset($field_data) )
+         else if( isset($field_data) )
          {
             $data_single[$colname] = $field_data ?? $col->getDefault();
          }
-         //else
+         else
          {
             /* missing in input */
          }
       }
 
+      /* if no relevant data found, abort here */
+      if( !$datasets && !$data_single) return;
+
       /* hard-setting of filter */
-      foreach( $this->filter as $colname => $val )
+      $primKeys = $this->getPrimaryKey();
+      foreach( $reference_filter + $this->filter as $colname => $val )
       {
          $iquery->cols([$colname]);
-         if( $uquery ) $uquery->cols([$colname]);
+         if( $uquery && !isset($primKeys[$colname]) ) $uquery->where("$colname=:$colname");
          $col_list[$colname]    = null;
          $data_single[$colname] = $val;
-      }
-
-      /* catch 'non-array-input' case */
-      if( !$data_as_array )
-      {
-         $datasets[] = $data_single;
       }
 
       /* prepare the update statement */
@@ -499,15 +467,16 @@ class Table implements TableIf
        * - if this table has no ID column, then
        *   --> first check if this entry already exists, before updating or inserting
        */
-
       /* store the data into the database */
-      foreach( $datasets as $row )
+      foreach( $datasets?:[$data_single] as $row )
       {
          /* construct query input array */
          $dataset = [];
          foreach( $col_list as $colname => $col )
          {
-            $dataset[$colname] = $row[$colname]??$data_single[$colname]??null?:$col->getDefault();
+            $v = $row[$colname]??$data_single[$colname]??$col->getDefault();
+            if( $v === '' ) $v = $col->getDefault();
+            $dataset[$colname] = $v;
          }
 
          if( $updateOnDuplicate )
@@ -520,7 +489,7 @@ class Table implements TableIf
             }
             else
             {
-               // first attempt an update
+               // check if row already exists, then update or insert based on that info
                $select_filter = array_intersect_key($dataset, $squery->getBindValues());
                $sstmt->execute($select_filter);
                if( $sstmt->fetchColumn() === 0 )
@@ -544,9 +513,9 @@ class Table implements TableIf
          }
 
          /* update the id col in the orginal data after an insert */
-         if( $idcol && !isset($row[$idcol->getName()]) )
+         if( $idcol && !$row[$idcol->getName()] )
          {
-            $field_name = $idcol->getAfixedName();
+            $field_name = $idcol->getAffixedName();
             $this->last_insert_id = $this->dbh->lastInsertId();
 
             if( $data->is_array($field_name) ) $data->push( $field_name, $this->last_insert_id);
@@ -562,52 +531,44 @@ class Table implements TableIf
     */
    public function updateRow( ValidatedInput $data, mixed $identifier ): void
    {
-      $idcols = [];
       /* pre-process identifier */
       if( is_scalar($identifier) )
       {
          $idcol_name = $this->getPrimaryKeyWithCheck();
-         $idcol = $this->getColumn($idcol_name);
-         $idcols[$idcol_name] = $idcol;
          $identifier = [ $idcol_name => $identifier ];
       }
       else
       {
-         foreach( array_keys($identifier) as $key )
+         if( $key = array_find_key( $identifier, fn($val, $key) => !$this->getColumn($key) ) )
          {
-            $idcol = $this->getColumn($key);
-            if( isset($idcol) )
-            {
-               $idcols[$key] = $idcol;
-            }
-            else
-            {
-               throw new \LogicException( "unknown identifier column $key in table ".$this->getName() );
-            }
+            throw new \LogicException( "unknown identifier column $key in table " . $this->getName() );
          }
       }
-
-      /* get all non-skipped columns */
-      $col_list = array_filter( $this->getNonKeyColumns(), function($c) { return !$c->doSkip(); } );
-      /* create the update query */
-      $query = $this->query_factory->newUpdate();
-      $query->table($this->getName());
-      $query->cols(array_keys($col_list));
-      foreach( array_keys(array_merge($identifier, $this->filter)) as $col )
-      {
-         $query->where("$col=:$col");
-      }
+      $identifier += $this->filter;
 
       /* handle file uploads */
       $this->handleFileUploads($data);
 
+      /* get all non-skipped columns and their data if provided */
+      $args = [];
+      foreach( $this->getNonKeyColumns() as $column )
+      {
+         if( $column->doSkip() || !$data->has($column->getAffixedName()) ) continue;
+         $args[$column->getName()] = $data->get_scalar($column->getAffixedName()) ?: $column->getDefault();
+      }
+
+      /* create the update query */
+      $query = $this->query_factory->newUpdate();
+      $query->table($this->getName());
+      $query->cols($args);
+      foreach( array_keys($identifier) as $col )
+      {
+         $query->where("$col=:$col");
+      }
+
       /* store the data */
       $stmt = $this->dbh->prepare( $query->getStatement() );
-      /** @var PlainColumn $col */
-      $args = array_map( fn($col) => $this->filter[$col->getName()]??$data->get_scalar($col->getAfixedName())?:$col->getDefault(),
-                         $idcols + $col_list);
-
-      if( !$stmt->execute( $args ) ) throw new DatabaseUpdateError( $stmt->$stmt->errorInfo()[2] );
+      if( !$stmt->execute( $identifier + $args ) ) throw new DatabaseUpdateError( $stmt->$stmt->errorInfo()[2] );
 
       $this->updateReferencedTables($data);
    }
@@ -716,52 +677,61 @@ class Table implements TableIf
       foreach( $this->getExternalReferences() as $ref )
       {
          // copy the link to the main table row to the referenced data
-         $colname    = PlainColumn::afixedName( $ref->column, $ref->table->getName() );
-         $refcolname = PlainColumn::afixedName( $ref->refcolumn, $this->getName() );
-         $data->store($colname, $data->get_scalar($refcolname));
-
-         /* check for 1:1 references whether it is to be set at all */
-         $sel_name = $ref->getSelectionName();
-         if( !is_null($sel_name) && !$data->get_scalar($sel_name) )
-         {
-            $ref->table->dropRow($data->get_scalar($refcolname));
-         }
-         else
-         {
-            /* perform the updating in the database */
-            $ref->table->insertData( $data, true );
-         }
+         $extcolname = PlainColumn::affixedName( $ref->column, $ref->table->getName() );
+         $refcolname = PlainColumn::affixedName( $ref->refcolumn, $this->getName() );
+         $ref_id = $data->get_scalar($refcolname);
+         $ref_filter = [ $ref->column => $ref_id ];
 
          /* evaluate the 'delete' selection */
          if( $ref->isOne2Many() )
          {
-            $ref->table->deleteRowsFromFv($data);
+            $ref->table->insertData( $data, true, $ref_filter );
+            $ref->table->deleteRowsFromFv($data, $ref_filter);
+         }
+         else
+         {
+            /* check for 1:1 references whether it is set */
+            if( $data->get_scalar($extcolname) )
+            {
+               /* perform the updating in the database */
+               $ref->table->insertData( $data, true, $ref_filter );
+            }
+            else
+            {
+               /* make sure the referenced table is cleaned for this id */
+               $ref->table->dropRow($ref_id);
+            }
          }
       }
    }
 
-   /*
-    * delete rows from table using the "delete column" as generated by Form\Printer
-    * by Table::get_form_definition
+   /**
+    * delete rows from table using the generated delete selector column.
     */
-   public function deleteRowsFromFv(ValidatedInput $data): void
+   public function deleteRowsFromFv(ValidatedInput $data, array $reference_filter = []): void
    {
       $del_data       = [];
       $del_id_columns = array_keys($this->getPrimaryKey());
-      foreach( $data->get_array(static::getDeleteColName($this->getName())) as $idx )
+      foreach( $data->get_array($this->getDeleteColName()) as $idx => $do_del )
       {
+         if( !$do_del ) continue;
+
          /* construct the row identifier */
          $identifier = [];
          foreach( $del_id_columns as $idcolname )
          {
-            $id_data = $data->get(PlainColumn::afixedName($idcolname, $this->getName()));
+            $id_data = $data->get(PlainColumn::affixedName($idcolname, $this->getName()));
             if( isset($this->filter[$idcolname]) )
             {
                $identifier[$idcolname] = $this->filter[$idcolname];
             }
-            else if( is_array($id_data) && isset($id_data[$idx-1]) )
+            else if( isset($reference_filter[$idcolname]) )
             {
-               $identifier[$idcolname] = $id_data[$idx-1];
+               $identifier[$idcolname] = $reference_filter[$idcolname];
+            }
+            else if( is_array($id_data) && isset($id_data[$idx]) )
+            {
+               $identifier[$idcolname] = $id_data[$idx];
             }
             else if( is_scalar($id_data) )
             {
@@ -789,22 +759,21 @@ class Table implements TableIf
 
       /* determine a row identifier if possible */
       $name_col = $this->getNameColumn();
-      $rowid = isset($name_col)? $data->get($name_col->getAfixedName()) : null;
+      $rowid = isset($name_col)? $data->get($name_col->getAffixedName()) : null;
 
       foreach ($this->m_filehdl as $fcol)
       {
          // if this column is not in $_FILES, assume it was
          // skipped on purpose in the form earlier, and skip silently
-         if( isset($_FILES[$fcol->getAfixedName()]) )
+         if( isset($_FILES[$fcol->getAffixedName()]) )
             $fcol->handleUpload( $data, $rowid );
       }
    }
 
    /**
     * get contents of the table and all referenced tables
-    * in a format compatible to \Form\Printer
     */
-   public function getFormData( int|string|array $selector = [] ): array
+   public function getFormData(int|string|array $selector = [], bool $as_array = false): array
    {
       $result = [];
 
@@ -814,8 +783,13 @@ class Table implements TableIf
       /* construct column retrieval */
       $query->cols(array_values(array_map( fn($c) => $c->sqlColumnSpec(), $this->getColumns() )) );
       /* add row selection */
-      if( is_scalar($selector) ) $selector = [ $this->getPrimaryKeyWithCheck() => $selector ];
+      if( is_scalar($selector) )
+      {
+         $selector = [ $this->getPrimaryKeyWithCheck() => $selector ];
+      }
       if( !is_array($selector) ) throw new \LogicException( "invalid selector of type " . get_class($selector));
+      /* enforce array output if the selector does contain all primary key columns */
+      $as_array = $as_array || array_diff(array_keys($this->getPrimaryKey()), array_keys($selector));
 
       /* add customized filter (with the selector filter having higher prio) and incorporate into query */
       foreach( array_merge($this->filter, $selector) as $col => $value )
@@ -847,17 +821,18 @@ class Table implements TableIf
       $rowid = 1;
       while( $row = $stmt->fetch(\PDO::FETCH_ASSOC) )
       {
+         if( !$as_array && $rowid > 1 ) throw new \LogicException("received multiple datasets for non-array request");
          foreach( $row as $name => $value )
          {
             $col = $this->getColumn($name);
 
-            if( ($col->getType() === 'Boolean') && (get_class($col) === PlainColumn::class) )
+            if( $as_array )
             {
-               if( $value ) $result[$col->getAfixedName()][] = $rowid;
+               $result[ $col->getAffixedName() ][] = $value;
             }
             else
             {
-               $result[PlainColumn::afixedName($name, $this->getName())][] = $value;
+               $result[ $col->getAffixedName() ] = $value;
             }
          }
 
@@ -882,105 +857,95 @@ class Table implements TableIf
          }
 
          /* retrieve all data connected to the current entry of this table */
+         $ref_as_array = $as_array || $refTab->isOne2Many();
          $ref_selector = [ $refTab->column => $filter[$refTab->refcolumn] ];
-         $ref_data = $refTab->table->getFormData( $ref_selector );
+         $result += $refTab->table->getFormData( $ref_selector, $ref_as_array );
+         $refval_key = PlainColumn::affixedName($refTab->column, $refTab->table->getName());
 
-         /* integrate this data into our result set */
-         if( !empty($ref_data) )
+         if( !$ref_as_array && ($result[$refval_key]??false) )
          {
-            $result = array_merge( $result, $ref_data );
-
-            /* enable any selection fields for 1:1 tables */
-            $sel_name = $refTab->getSelectionName();
-            if( !is_null($sel_name) )
-            {
-               $result[$sel_name] = '1';
-            }
+            /* for 1:1 reference, modify the reference column value to a true boolean
+             * as expected by the checkbox field we are adding at form generation
+             */
+            $result[$refval_key] = 1;
          }
       }
 
       return $result;
    }
 
-
-   /**
-    * {@inheritDoc}
-    * @see \getoma\dbfe\Table\TableIf::getFormDefinition()
-    */
-   public function getFormDefinition(LabelHandlerIf $lblHdl, array $data, array $options = []): ConfigurationListIf
+   public function getFormGeneratorDefinition(
+      bool $as_array = false,
+      bool $required_only = false,
+      array $groups = [],
+      ?string $refcol = null,
+   ): CompositeNode
    {
-      /* _.defaults for $options... */
-      foreach( [ 'groups' => [], 'as_array' => false, 'skip' => [], 'required_only' => false ] as $opt => $default )
-      {
-         if( !isset($options[$opt]) ) $options[$opt] = $default;
-      }
-
-      /* create a (column => group) mapping for easy access during the iteration */
       $grouping = [];
-      foreach( $options['groups'] as $group => $fields )
+      foreach( $groups as $group => $fields )
       {
          $grouping = array_merge( $grouping, array_fill_keys( $fields, $group ) );
       }
-      /** @var ConfigurationIf[]  store links to any created group */
+
+      /** @var array<string, GroupNode> $groups */
       $groups = [];
+      $result = $as_array
+         ? new ArrayGroupNode($this->getName(), delete_name: $this->getDeleteColName())
+         : new GroupNode($this->getName());
 
-      /** generate the form configuration **/
-      $result = new \getoma\dbfe\Form\Printer\Configuration\ConfigurationList();
-
-      // generate all fields
       foreach( $this->getColumns() as $colname => $col )
       {
-         // check if to skip
-         if( in_array($colname, $options['skip']) )             continue;
-         if( $options['required_only'] && !$col->isRequired() ) continue;
-         if( $col->doSkip() )                                   continue;
+         if( $required_only && !$col->isRequired() ) continue;
+         if( $col->doSkip() )                        continue;
 
-         // auto_increment values are only added as hidden fields
-         if( $col->isAutoIncrement() )
+         if( $colname === $refcol )
          {
-            $result[] = [ 'type' => 'hidden', 'name' => $col->getAfixedName($options['as_array']) ];
+            /* if printed as array, the reference column value is fully redundant
+             * in the ui mask part of this child table, so skip it.
+             */
+            if( $as_array ) continue;
+
+            /* for the non-array case, this is a 1:1 reference, and we can use
+             * it to add a dedicated checkbox to set/reset this reference
+             */
+            $result->setSelector(new BooleanField($col->getAffixedName()));
             continue;
          }
 
-         /* create a sublist and add the column configuration */
-         $coldef_list = new \getoma\dbfe\Form\Printer\Configuration\ConfigurationList( $col->getFormDefinition( $lblHdl, $data, $options['as_array'] ) );
-
-         /* loop through the list of columns and add them to the output */
-         foreach( $coldef_list as $coldef )
+         if( $col->isAutoIncrement() )
          {
-            $groupname = @$grouping[$colname];
+            $result->add(new HiddenField($col->getAffixedName()));
+            continue;
+         }
 
-            if( isset( $groupname ) )
-            {
-               if( !isset( $groups[$groupname] ) )
-               {
-                  $result[] = [
-                        'type' => 'fieldset',
-                        'name' => $groupname,
-                        'label' => $lblHdl->get($groupname, $this->getName()),
-                  ];
+         $node = $col->getFormGeneratorDefinition();
 
-                  $groups[$groupname] = $result->back();
-               }
-               $groups[$groupname]->children()->add($coldef);
-            }
-            else
+         if( $groupname = $grouping[$colname] ?? null )
+         {
+            if( !isset( $groups[$groupname] ) )
             {
-               $result[] = $coldef;
+               $groups[$groupname] = new GroupNode($groupname);
+               $result->add($groups[$groupname]);
             }
+            $groups[$groupname]->add($node);
+         }
+         else if( $node instanceof TransparentGroup )
+         {
+            foreach( $node->children() as $child )
+            {
+               $result->add($child);
+            }
+         }
+         else
+         {
+            $result->add($node);
          }
       }
 
-      if( !$options['required_only'] )
+      if( !$required_only )
       {
-         /* generate any external references */
-         $sel_group = null;
-         foreach( $this->getExternalReferences() as $ref_name => $ref_tab )
+         foreach( $this->getExternalReferences() as $ref_tab )
          {
-            /* the external reference column that shows on this
-             * table needs to reference our single(!) primary key column
-             * no other setup supported (for now)
-             */
             $pkeys = array_keys( $this->getPrimaryKey() );
             if(!( (count($pkeys)===1) && ($ref_tab->refcolumn === $pkeys[0]) ) )
             {
@@ -988,85 +953,10 @@ class Table implements TableIf
                                         " => {$this->getName()}.{$ref_tab->refcolumn}", E_USER_WARNING );
             }
 
-            /* generate selection field for 1:1 dependencies, right before the first such table
-             * This field allows the user to enable/disable the single sub tables
-             */
-            $sel_name = $ref_tab->getSelectionName();
-            if( !is_null($sel_name) )
-            {
-               if( is_null($sel_group) )
-               {
-                  $sel_group = new \getoma\dbfe\Form\Printer\Configuration\Configuration(
-                               [ 'type' => 'fieldset', 'name' => 'table_selection',
-                                 'label' => $lblHdl->get('table_selection', $this->getName()),
-                                 'content' => []  ] );
-                  $result[] = $sel_group;
-               }
-
-               $sel_group->children()->add( [ 'type'  => 'checkbox', 'value' => '1'
-                                            , 'name'  => $sel_name
-                                            , 'label' => $lblHdl->get( $ref_tab->table->getName() ) ] );
-            }
-
-
-            /* generate the sub form via recursive call
-             * - as array if one-to-many dependency
-             * - skip the reference column (as it contains only the row id of the current data set)
-             */
-            $ref_as_array = $ref_tab->isOne2Many()? true : $options['as_array'];
-            $columns = $ref_tab->table->getFormDefinition($lblHdl, $data, [ 'as_array' => $ref_as_array, 'skip' => [$ref_tab->column] ] );
-
-            if(  $this->fieldsets_for_references                                   // reference fieldsets enabled
-              &&!array_reduce( $columns->content(), function($r,$o) { return $r && ($o['type'] === 'fieldset'); }, true ) // children are more than just other fieldsets
-              )
-            {
-               $result[] = [ 'type'    => 'fieldset',
-                             'name'    => $ref_name,
-                             'label'   => $lblHdl->get($ref_name),
-                             'content' => $columns                 ];
-            }
-            else
-            {
-               $result[] = [ 'type' => 'Group', 'name' => $ref_name, 'content' => $columns ];
-            }
+            $ref_as_array = $as_array || $ref_tab->isOne2Many();
+            $child_mask   = $ref_tab->table->getFormGeneratorDefinition($ref_as_array, refcol: $ref_tab->column);
+            $result->add($child_mask);
          }
-      }
-
-      /* if this is an array:
-       * - add a "delete" column
-       * - encapsulate into an ArrayGroup
-       */
-      if( $options['as_array'] )
-      {
-         /* determine the number of rows to prefill the "delete" values */
-         $rowcount = 0;
-         foreach( $this->getPrimaryKey() as $pcol )
-         {
-            $cname = $pcol->getAfixedName();
-            if( isset($data[$cname]) )
-            {
-               $rowcount = count($data[$cname]);
-               break;
-            }
-         }
-
-         $row_range = range(1, $rowcount);
-
-         /* special handling for checkboxes: put the row # as value for each box */
-         foreach( $result as $entry )
-         {
-            if( $entry['type'] === 'checkbox' ) $entry['value'] = $row_range;
-         }
-
-         /* create the "del" checkbox */
-         if( $rowcount )
-         {
-            $result[] = [ 'name' => static::getDeleteColName( $this->getName(), true ), 'label' => $lblHdl->get('delete'),
-                          'type' => 'checkbox', 'value' => $row_range, 'class' => 'delete_entry' ];
-         }
-
-         /* create the surrounding array group */
-         $result = new \getoma\dbfe\Form\Printer\Configuration\ConfigurationList( [ [ 'name' => $this->getName(), 'type' => 'ArrayGroup', 'content' => $result ] ] );
       }
 
       return $result;
@@ -1090,7 +980,7 @@ class Table implements TableIf
          if( in_array( $column->getName(), $skip) ) continue;
          if( $column->doSkip() ) continue;
          // integrate validator configuration for this column
-         $col_name = $column->getAfixedName();
+         $col_name = $column->getAffixedName();
          $result += [ $col_name => $column->getValidatorConfig($as_array, $optional_id && $column->isAutoIncrement()) ];
          // store back this name for "required array entries" check
          if( $as_array && !$column->isAutoIncrement() )
@@ -1122,9 +1012,9 @@ class Table implements TableIf
       return $result;
    }
 
-   private static function getDeleteColName( string $tabname, $as_array = false ): string
+   protected function getDeleteColName(): string
    {
-      return 'del' . $tabname . ($as_array? '[]' : '');
+      return PlainColumn::affixedName('delete_row', $this->getName());
    }
 
    /**

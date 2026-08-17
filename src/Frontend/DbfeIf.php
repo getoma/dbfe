@@ -2,6 +2,8 @@
 
 namespace getoma\dbfe\Frontend;
 
+use getoma\dbfe\Form\Generator\InputMask;
+
 interface DbfeIf
 {
    /**
@@ -30,6 +32,11 @@ interface DbfeIf
      * generate page content
      */
     public function output(): \getoma\dbfe\Util\HtmlElement\HtmlElementIf;
+
+    /**
+     * generate the inferred form mask, if this page provides one
+     */
+    public function getInputMask(): ?InputMask;
 
     /**
      * whether page should redirect

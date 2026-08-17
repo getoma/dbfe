@@ -2,14 +2,19 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
-use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
+use getoma\dbfe\Form\Generator\Node\NodeInterface;
 use Respect\Validation\Validator as V;
 
 class Phone extends Type
 {
-   public function getFormAttributes(?LabelHandlerIf $lblHdl = null, string $prefix = ''): array
+   public function getFormNode(string $name, bool $required = false, bool $fixed = false, array $attributes = []): NodeInterface
    {
-      return [ 'type' => 'tel' ];
+      return new \getoma\dbfe\Form\Generator\Field\TelField(
+         $name,
+         $required,
+         $fixed,
+         $attributes,
+      );
    }
 
    public function getConstraint(): V

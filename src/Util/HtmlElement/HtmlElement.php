@@ -64,7 +64,7 @@ class HtmlElement implements HtmlElementIf
                {
                   foreach( $this->content as $subitem )
                   {
-                     $result .= is_object($subitem)? $subitem->asHtml( 0, 0 ) : $subitem;
+                     $result .= is_object($subitem)? $subitem->asHtml( 0, 0 ) : htmlspecialchars($subitem);
                   }
                }
                else
@@ -72,13 +72,13 @@ class HtmlElement implements HtmlElementIf
                   $result .= "\n";
                   foreach( $this->content as $subitem ) /* allen Inhalt ausgeben */
                   {
-                     if( is_object( $subitem ) )
+                     if( is_object($subitem) )
                      {
                         $result .= $subitem->asHtml( $indent + $this_shift, $shift ) . "\n";
                      }
                      else
                      {
-                        $result .= $indentstr . str_repeat( ' ', $this_shift ) . $subitem . "\n";
+                        $result .= $indentstr . str_repeat( ' ', $this_shift ) . htmlspecialchars($subitem) . "\n";
                      }
                   }
                   $result .= "$indentstr";
@@ -87,7 +87,7 @@ class HtmlElement implements HtmlElementIf
             else
             {
                /*nur Text als inhalt: ohne zusätzliche Zeilenumbrüche ausgeben */
-               $result .= $this->content[0];
+               $result .= htmlspecialchars($this->content[0]);
             }
          }
          if( $this->tag ) $result .= "</" . $this->tag . ">";

@@ -2,6 +2,7 @@
 
 namespace getoma\dbfe\Frontend;
 
+use getoma\dbfe\Form\Generator\InputMask;
 use getoma\dbfe\Util\LabelHandler\DummyLabelHandler;
 use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
 
@@ -148,6 +149,15 @@ abstract class PlainPage implements DbfeIf
     * @see dbfeIf::output()
     */
    abstract public function output(): \getoma\dbfe\Util\HtmlElement\HtmlElementIf;
+
+   /**
+    * {@inheritDoc}
+    * @see dbfeIf::getInputMask()
+    */
+   public function getInputMask(): ?InputMask
+   {
+      return null;
+   }
 
    /**
     * {@inheritDoc}

@@ -42,6 +42,16 @@ abstract class Type implements TypeIf
       return $db_default;
    }
 
+   protected function without(array $attributes, array $keys): array
+   {
+      foreach( $keys as $key )
+      {
+         unset($attributes[$key]);
+      }
+
+      return $attributes;
+   }
+
    /**
     * Factory to create specialised classes
     */

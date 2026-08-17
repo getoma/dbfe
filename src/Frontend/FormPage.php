@@ -2,7 +2,8 @@
 
 namespace getoma\dbfe\Frontend;
 
-use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
+use getoma\dbfe\Form\Generator\InputMask;
+use getoma\dbfe\Form\Generator\Node\CompositeNode;
 use getoma\dbfe\Util\ValidatedInput;
 use Respect\Validation\Exceptions\NestedValidationException;
 use Respect\Validation\Validator as V;
@@ -17,20 +18,15 @@ abstract class FormPage extends PlainPage
    protected ?array $m_received_input = null;
 
    /******************************************************
-    * PROTECTED MEMBER VARIABLES, USED BY DERIVED CLASSES
-    ******************************************************/
-   protected $m_formparams = [];
-
-   /******************************************************
     * DERIVED CLASSES INTERFACE (INTERNAL)
     ******************************************************/
 
    /**
-      * return a list of respect validators keyed by request field name.
-      *
-      * @return array<string, \Respect\Validation\Validator>
+    * return a list of respect validators keyed by request field name.
+    *
+    * @return array<string, \Respect\Validation\Validator>
     */
-      abstract protected function getValidatorConfig(): array;
+   abstract protected function getValidatorConfig(): array;
 
    /**
     * process the validated data in $this->fv
@@ -43,11 +39,10 @@ abstract class FormPage extends PlainPage
    abstract protected function getData( bool $refetch = false ): array;
 
    /**
-    * return content of the form as Form\Printer structure
-    * @param $values array the data that will be printed with this form
-    * @return ConfigurationListIf
+    * return content of the form as Form\Generator structure
+    * @return CompositeNode
     */
-   abstract protected function getFormDefinition(array $values): ConfigurationListIf;
+    abstract protected function getFormGeneratorDefinition(): CompositeNode;
 
    /**
     * set the error message - also in intput errors array
@@ -62,32 +57,17 @@ abstract class FormPage extends PlainPage
     * interface
     ******************************************************/
 
-   /**
-    * {@inheritDoc}
-    * @see plainPage::output()
-    */
-   public function output(): \getoma\dbfe\Util\HtmlElement\HtmlElementIf
+   public function getInputMask(): ?InputMask
    {
       $values = $this->m_received_input ?: $this->getData();
+      $errors = $this->m_input_errors ?? [];
+      $mask = $this->getFormGeneratorDefinition();
 
-      $form_cfg = new \getoma\dbfe\Form\Printer\Configuration\Configuration(
-         array_merge(
-         [
-            'values'  => $values,
-            'errmsg'  => $this->m_input_errors,
-            'invalid' => array_fill_keys(array_keys($this->m_input_errors), true),
-            'name'    => $this->getName(),
-            'content' => $this->getFormDefinition($values),
-            'accept-charset' => 'UTF-8',
-         ],
-         $this->m_formparams
-         ) );
+      $document = new InputMask($mask, $values, $errors);
 
-      $form = new \getoma\dbfe\Form\Printer\Printer( $form_cfg );
+      $this->callHook('InputMask', $this, $document);
 
-      $this->callHook('printform', $this);
-
-      return $form;
+      return $document;
    }
 
    public function input(): ?bool

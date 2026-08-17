@@ -2,16 +2,20 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
-use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
+use getoma\dbfe\Form\Generator\Node\NodeInterface;
 use Respect\Validation\Validator as V;
 
 class Uri extends Text
 {
-   public function getFormAttributes(?LabelHandlerIf $lblHdl = null, string $prefix = ''): array
+   public function getFormNode(string $name, bool $required = false, bool $fixed = false, array $attributes = []): NodeInterface
    {
-      $result = [ 'type' => 'url' ];
-      if( isset($this->maxlen) ) $result['size'] = $this->maxlen;
-      return $result;
+      return new \getoma\dbfe\Form\Generator\Field\UrlField(
+         $name,
+         $required,
+         $fixed,
+         $this->maxlen,
+         $attributes,
+      );
    }
 
    public function getConstraint(): V

@@ -2,11 +2,8 @@
 
 namespace getoma\dbfe\Table\Column;
 
-use getoma\dbfe\Form\Printer\Configuration\Configuration as fpc;
-use getoma\dbfe\Form\Printer\Configuration\ConfigurationIf;
-use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
+use getoma\dbfe\Form\Generator\Node\NodeInterface;
 use getoma\dbfe\Table\ColumnTypes\Type;
-use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
 use Respect\Validation\Validator as Validator;
 
 /**
@@ -69,20 +66,14 @@ class PlainColumn implements ColumnIf
       $this->custom_constraint = $constraint;
    }
 
-   /**
-    * get a form specification that can be used as input to Form\Printer
-    */
-   public function getFormDefinition(LabelHandlerIf $lblHdl, array $data = [], bool $as_array = false): ConfigurationIf|ConfigurationListIf
+   public function getFormGeneratorDefinition(): NodeInterface
    {
-      return new fpc(
-         array_merge( [ 'name'     => $this->getAfixedName($as_array),
-                        'label'    => $lblHdl->get( $this->getName(), $this->tablename ),
-                        'required' => $this->isRequired() && !$as_array,
-                        'fixed'    => $this->isFixed()
-                      ],
-                        $this->formProp,
-                        $this->type->getFormAttributes( $lblHdl, $this->tablename . '.' . $this->getName() ),
-            ) );
+      return $this->type->getFormNode(
+         name:       $this->getAffixedName(),
+         required:   $this->isRequired(),
+         fixed:      $this->isFixed(),
+         attributes: $this->formProp,
+      );
    }
 
    /**
@@ -163,16 +154,16 @@ class PlainColumn implements ColumnIf
 
    /**
     */
-   public static function afixedName( string $column_name, string $prefix = '', bool $as_array = false ): string
+   public static function affixedName(string $column_name, string $prefix = ''): string
    {
-      return ($prefix? $prefix . '_' : '') . $column_name . ($as_array? '[]' : '');
+      return ($prefix? $prefix . '-' : '') . $column_name;
    }
 
    /**
     */
-   public function getAfixedName( bool $as_array = false ): string
+   public function getAffixedName(): string
    {
-      return static::afixedName( $this->getName(), $this->tablename, $as_array );
+      return static::affixedName($this->getName(), $this->tablename);
    }
 
    /**
@@ -180,9 +171,7 @@ class PlainColumn implements ColumnIf
     */
    public function getValidatorConfig(bool $as_array = false, bool $optional = false): Validator
    {
-      $name = $this->getAfixedName( false );
-      $constraint = $this->custom_constraint ?? $this->type->getConstraint();
-
+      $constraint  = $this->custom_constraint ?? $this->type->getConstraint();
       $is_optional = $optional || (!$this->isRequired() && !$this->isAutoIncrement());
 
       if( $is_optional )
@@ -196,7 +185,7 @@ class PlainColumn implements ColumnIf
       }
 
       // in case of "array" inputs, the key may also be missing entirly if the array has zero length
-      return Validator::key( $name, $constraint, !($is_optional || $as_array) );
+      return Validator::key( $this->getAffixedName(), $constraint, !($is_optional || $as_array) );
    }
 
    /**

@@ -43,6 +43,11 @@ final class ValidatedInput
 
    public function has(string $key): bool
    {
+      return isset($this->data[$key]);
+   }
+
+   public function hasValue(string $key): bool
+   {
       return isset($this->data[$key]) && !empty($this->data[$key]);
    }
 

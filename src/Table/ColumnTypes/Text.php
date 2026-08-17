@@ -2,7 +2,7 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
-use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
+use getoma\dbfe\Form\Generator\Node\NodeInterface;
 use Respect\Validation\Validator as V;
 
 /**
@@ -33,16 +33,11 @@ class Text extends Type
       return is_string($db_default)? trim( $db_default, "\"'") : $db_default;
    }
 
-   public function getFormAttributes(?LabelHandlerIf $lblHdl = null, string $prefix = ''): array
+   public function getFormNode(string $name, bool $required = false, bool $fixed = false, array $attributes = []): NodeInterface
    {
-      if( isset( $this->maxlen ) )
-      {
-         return [ 'type' => 'text', 'size' => $this->maxlen ];
-      }
-      else
-      {
-         return [ 'type' => 'textarea' ];
-      }
+      return $this->maxlen
+         ? new \getoma\dbfe\Form\Generator\Field\TextField($name, $required, $fixed, $this->maxlen, $attributes)
+         : new \getoma\dbfe\Form\Generator\Field\TextareaField($name, $required, $fixed, $attributes);
    }
 
    public function getConstraint(): V

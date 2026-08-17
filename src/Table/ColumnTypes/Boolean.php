@@ -2,7 +2,8 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
-use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
+use getoma\dbfe\Form\Generator\Field\BooleanField;
+use getoma\dbfe\Form\Generator\Node\NodeInterface;
 use Respect\Validation\Validator as V;
 
 /**
@@ -11,10 +12,15 @@ use Respect\Validation\Validator as V;
  */
 class Boolean extends Type
 {
-
-   public function getFormAttributes(?LabelHandlerIf $lblHdl = null, string $prefix = ''): array
+   public function getFormNode(string $name, bool $required = false, bool $fixed = false, array $attributes = []): NodeInterface
    {
-      return [ 'type' => 'checkbox', 'value' => '1' ];
+      return new BooleanField(
+         $name,
+         $attributes['value'] ?? 1,
+         $required,
+         $fixed,
+         $attributes,
+      );
    }
 
    public function getConstraint(): V

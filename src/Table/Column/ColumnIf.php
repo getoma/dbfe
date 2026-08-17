@@ -2,9 +2,7 @@
 
 namespace getoma\dbfe\Table\Column;
 
-use getoma\dbfe\Form\Printer\Configuration\ConfigurationIf;
-use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
-use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
+use getoma\dbfe\Form\Generator\Node\NodeInterface;
 use Respect\Validation\Validator as Validator;
 
 interface ColumnIf
@@ -16,9 +14,9 @@ interface ColumnIf
    public function addFormProperties(array $prop): void;
 
    /**
-    * get a form specification that can be used as input to Form\Printer
+    * get a form specification as form generator node
     */
-   public function getFormDefinition(LabelHandlerIf $lblHdl, array $data = [], bool $as_array = false): ConfigurationIf|ConfigurationListIf;
+   public function getFormGeneratorDefinition(): NodeInterface;
 
    /**
     * get the column name
@@ -67,9 +65,8 @@ interface ColumnIf
    public function isFixed(): bool;
 
    /**
-    * @return string
     */
-   public function getAfixedName( bool $as_array = false ): string;
+   public function getAffixedName(): string;
 
    /**
     * provide column specific form\validator configuration

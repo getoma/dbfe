@@ -2,7 +2,7 @@
 
 namespace getoma\dbfe\Table\ColumnTypes;
 
-use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
+use getoma\dbfe\Form\Generator\Node\NodeInterface;
 use Respect\Validation\Validator as Validator;
 
 interface TypeIf
@@ -18,8 +18,9 @@ interface TypeIf
    public function getDefault($db_default = ''): mixed;
 
    /**
+    * create a generator node for this column type
     */
-   public function getFormAttributes(?LabelHandlerIf $lblHdl = null, string $prefix = ''): array;
+   public function getFormNode(string $name, bool $required = false, bool $fixed = false, array $attributes = []): NodeInterface;
 
    /**
     */

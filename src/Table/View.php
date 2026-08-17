@@ -2,26 +2,22 @@
 
 namespace getoma\dbfe\Table;
 
-use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
+use getoma\dbfe\Form\Generator\Field\CellField;
+use getoma\dbfe\Form\Generator\Node\CompositeNode;
+use getoma\dbfe\Form\Generator\Node\NodeInterface;
+use getoma\dbfe\Form\Generator\Node\TableNode;
 use getoma\dbfe\Table\Column\ColumnIf;
-use getoma\dbfe\Table\Column\DispType;
+use getoma\dbfe\Table\Column\FileContentType;
 use getoma\dbfe\Table\Column\PlainColumn;
 use getoma\dbfe\Util\FileHandler\FileHandlerIf;
-use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
+use getoma\dbfe\Util\ValidatedInput;
 
 use Aura\SqlQuery\Common\SelectInterface;
-use getoma\dbfe\Util\ValidatedInput;
 
 class View implements TableIf
 {
    /** @var ViewColumn[] */
    protected array $m_columns;
-
-   /* default setting for "hideEmpty" */
-   public static $HIDE_EMPTY = false;
-
-   /* hide empty */
-   protected bool $m_hide_empty;
 
    function __construct(
       protected readonly string $name,
@@ -29,8 +25,6 @@ class View implements TableIf
       protected readonly \PDO $dbh
    )
    {
-      $this->m_hide_empty = self::$HIDE_EMPTY;
-
       $first = true;
       foreach( $query->getCols() as $alias => $col )
       {
@@ -42,11 +36,6 @@ class View implements TableIf
          $this->m_columns[$alias] = new ViewColumn($alias, $name, $first);
          $first = false;
       };
-   }
-
-   public function hideEmpty( bool $hide )
-   {
-      $this->m_hide_empty = $hide;
    }
 
    public function linkReferences( Factory $factory, int $options = 0 ): void
@@ -121,12 +110,6 @@ class View implements TableIf
       throw new \LogicException("Views can't have references!");
    }
 
-   public function useFieldsetsForReferences(?bool $status = null): bool
-   {
-      /* nothing to do */
-      return false;
-   }
-
    public function setOrdering(string|array $order): void
    {
       $this->query->order = $order;
@@ -137,7 +120,7 @@ class View implements TableIf
       throw new \LogicException('check for id not supported, yet!');
    }
 
-   public function setFilehandler( string $column, FileHandlerIf $fh, DispType $display_type = DispType::link, bool $support_delete = false ): void
+   public function setFilehandler( string $column, FileHandlerIf $fh, FileContentType $content_type = FileContentType::Opaque, bool $support_delete = false ): void
    {
       throw new \LogicException("Views can't have uploads!");
    }
@@ -152,31 +135,28 @@ class View implements TableIf
       return false;
    }
 
-   /**
-    * {@inheritDoc}
-    * @see \getoma\dbfe\Table\TableIf::getFormDefinition()
-    * @return ConfigurationListIf
-    */
-   public function getFormDefinition(LabelHandlerIf $lblHdl, array $data, array $options = []): ConfigurationListIf
+   public function getFormGeneratorDefinition(
+      bool $as_array = false,
+      bool $required_only = false,
+      array $groups = [],
+      ?string $refcol = null,
+   ): CompositeNode
    {
-      if( !$data[$this->getName() . "___empty"] || !$this->m_hide_empty )
-      {
-         $content = array_map( function($col) use ($lblHdl, $data, $options)
-                               {
-                                  return $col->getFormDefinition( $lblHdl, $data, $options['as_array'] || false );
-                               },
-                              // skip first column in output (contains link to main table)
-                              array_slice( array_values( $this->getColumns() ), 1 ) );
+      $table = new TableNode($this->getName());
 
-         return new \getoma\dbfe\Form\Printer\Configuration\ConfigurationList( [ [ 'type' => 'table', 'content' => $content ] ] );
-      }
-      else
+      foreach( $this->getColumns() as $colname => $col )
       {
-         return new \getoma\dbfe\Form\Printer\Configuration\ConfigurationList();
+         if( $colname === $refcol )                  continue;
+         if( $required_only && !$col->isRequired() ) continue;
+         if( $col->doSkip() )                        continue;
+
+         $table->add($col->getFormGeneratorDefinition());
       }
+
+      return $table;
    }
 
-   public function getFormData(int|string|array $selector = []): array
+   public function getFormData(int|string|array $selector = [], bool $as_array = false): array
    {
       $result = [];
 
@@ -198,15 +178,25 @@ class View implements TableIf
       /* execute query */
       $stmt = $this->dbh->prepare( $query->getStatement() );
       $stmt->execute($query->getBindValues());
-
-      $result[$this->getName() . "___empty"] = ($stmt->rowCount() === 0);
+      $first = true;
 
       while( $row = $stmt->fetch(\PDO::FETCH_ASSOC) )
       {
+         if( !$first && !$as_array ) throw new \LogicException("received multiple datasets for non-array request");
+
          foreach( $row as $name => $value )
          {
-            $result[PlainColumn::afixedName($name, $this->getName())][] = $value;
+            if( $as_array )
+            {
+               $result[PlainColumn::affixedName($name, $this->getName())][] = $value;
+            }
+            else
+            {
+               $result[PlainColumn::affixedName($name, $this->getName())] = $value;
+            }
          }
+
+         $first = false;
       }
 
       return $result;
@@ -217,7 +207,7 @@ class View implements TableIf
       return [];
    }
 
-   public function insertData(ValidatedInput $data, bool $updateOnDuplicate = false): void
+   public function insertData(ValidatedInput $data, bool $updateOnDuplicate = false, array $reference_filter = []): void
    {
       /* nothing to do */
    }
@@ -232,7 +222,7 @@ class View implements TableIf
       return null;
    }
 
-   public function deleteRowsFromFv(ValidatedInput $data): void
+   public function deleteRowsFromFv(ValidatedInput $data, array $reference_filter = []): void
    {
       /* nothing to do */
    }
@@ -272,17 +262,9 @@ class ViewColumn implements ColumnIf
       $this->isKey     = $isKey;
    }
 
-   /**
-    * {@inheritDoc}
-    * @see \dbfe\ColumnIf::getFormDefinition()
-    */
-   public function getFormDefinition(LabelHandlerIf $lblHdl, array $data = [], bool $as_array = false): \getoma\dbfe\Form\Printer\Configuration\Configuration
+   public function getFormGeneratorDefinition(): NodeInterface
    {
-      return new \getoma\dbfe\Form\Printer\Configuration\Configuration(
-         array_merge( [ 'name'  => $this->getAfixedName($as_array),
-                        'label' => $lblHdl->get( $this->getName(), $this->view_name ),
-                        'type'  => 'Cell' ],
-                        $this->m_formProp ) );
+      return new CellField($this->getAffixedName());
    }
 
    public function isRequired(): bool
@@ -346,10 +328,10 @@ class ViewColumn implements ColumnIf
       return true;
    }
 
-   public function getAfixedName(bool $as_array = false): string
+   public function getAffixedName(): string
    {
       /* no specific array support for view, this is only needed for <input> names */
-      return PlainColumn::afixedName($this->name, $this->view_name, false);
+      return PlainColumn::affixedName($this->name, $this->view_name);
    }
 
    public function setCustomConstraint(\Respect\Validation\Validator $constraint): void

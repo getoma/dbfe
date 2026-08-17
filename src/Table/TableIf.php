@@ -2,11 +2,10 @@
 
 namespace getoma\dbfe\Table;
 
-use getoma\dbfe\Form\Printer\Configuration\ConfigurationListIf;
+use getoma\dbfe\Form\Generator\Node\CompositeNode;
 use getoma\dbfe\Table\Column\ColumnIf;
-use getoma\dbfe\Table\Column\DispType;
+use getoma\dbfe\Table\Column\FileContentType;
 use getoma\dbfe\Util\FileHandler\FileHandlerIf;
-use getoma\dbfe\Util\LabelHandler\LabelHandlerIf;
 
 use Aura\SqlQuery\Common\SelectInterface;
 use getoma\dbfe\Util\ValidatedInput;
@@ -27,7 +26,7 @@ interface TableIf
    /**
     * register a filehandler for a certain column
     */
-   function setFilehandler( string $column, FileHandlerIf $fh, DispType $display_type = DispType::link, bool $support_delete = false ): void;
+   function setFilehandler( string $column, FileHandlerIf $fh, FileContentType $content_type = FileContentType::Opaque, bool $support_delete = false ): void;
 
    /**
     * set a application-defined set of allowed input values
@@ -129,7 +128,7 @@ interface TableIf
     /**
      * insert data into the table
      */
-    function insertData(ValidatedInput $data, bool $updateOnDuplicate = false ): void;
+    function insertData(ValidatedInput $data, bool $updateOnDuplicate = false, array $reference_filter = []): void;
 
     /**
      * update an existing row in the table
@@ -150,40 +149,29 @@ interface TableIf
     function dropRowset( array $id_columns, array $id_values ): void;
 
     /**
-     * delete rows from table using the "delete column" as generated
-     * by Table::get_form_definition
+     * delete rows from table using the generated delete selector column
      */
-    function deleteRowsFromFv(ValidatedInput $data): void;
+    function deleteRowsFromFv(ValidatedInput $data, array $reference_filter = []): void;
 
     /**
      * get contents of the table and all referenced tables
-     * in a format compatible to Form Printer
+     * in a format compatible to form generator inference
      */
-    function getFormData( int|string|array $selector = [] ): array;
+    function getFormData(int|string|array $selector = [], bool $as_array = false): array;
 
     /**
-     * get a form specification that can be used as input to Form\Printer
-     *
-     * options:
-     *  as_array      => encapsulate whole table form into ArrayGroup
-     *  skip          => list of columns to skip
-     *  required_only => skip all columns but the required ones, don't print referenced forms
-     *  groups        => group columns into fieldsets: [ <fieldsetname> => [ ...<column> ] ]
-     *
-     * @return ConfigurationListIf
+     * get a form specification as generator nodes
      */
-    function getFormDefinition(LabelHandlerIf $lblHdl, array $data, array $options = []): ConfigurationListIf;
+    function getFormGeneratorDefinition(
+       bool $as_array = false,
+       bool $required_only = false,
+       array $groups = [],
+       ?string $refcol = null,
+    ): CompositeNode;
 
     /**
      * get \Form\Validator configuration for this table
      * if $skip_primary set, the primary key is not included (useful if new table entries are to be added)
      */
     function getFormValidation( bool $skip_auto_increment = false, bool $as_array = false, $skip = [] ): array;
-
-    /**
-     * whether referenced tables shall be encapsulated into <fieldset> at form output
-     * @param bool $status - if provided set it to the given value
-     * @return bool - current status
-     */
-    function useFieldsetsForReferences( ?bool $status = null ): bool;
 }
