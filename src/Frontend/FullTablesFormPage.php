@@ -30,7 +30,8 @@ abstract class FullTablesFormPage extends TableFormPage
 
    protected function configureTableList(): array
    {
-      return isset($this->m_entry_id)? [ $this->m_table_selection[$this->m_entry_id-1] ] : [];
+      $entryId = $this->readEntryId();
+      return isset($entryId)? [ $this->m_table_selection[$entryId-1] ] : [];
    }
 
    protected function configureEntrySelection(): SelectInterface|array|null

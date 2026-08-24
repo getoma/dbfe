@@ -138,8 +138,6 @@ abstract class TableFormPage extends FormPage
 
       $this->query_factory = new QueryFactory($this->getDbh()->getAttribute(\PDO::ATTR_DRIVER_NAME));
 
-      $this->m_entry_id = $this->readEntryId();
-
       /* create tables for this page */
       $table_list = $this->configureTableList();
       if( isset($table_list) && is_array($table_list) && count($table_list) )
@@ -172,6 +170,8 @@ abstract class TableFormPage extends FormPage
          }
       }
       $this->configureTables();
+
+      $this->m_entry_id = $this->readEntryId();
    }
 
    /**
